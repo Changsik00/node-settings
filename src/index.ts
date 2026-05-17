@@ -65,7 +65,7 @@ export {
   DEFAULT_SECRET_PATTERNS,
 } from "./introspect.js";
 
-export { loadNodeEnv, loadViteEnv } from "./loaders/index.js";
+export { loadNodeEnv } from "./loaders/index.js";
 export { loadDotenvFile, parseDotenv } from "./loaders/dotenv-file.js";
 export {
   loadDotenvCascade,

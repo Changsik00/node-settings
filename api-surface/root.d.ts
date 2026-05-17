@@ -24,7 +24,7 @@ export { NodeSettingsError, type NodeSettingsErrorCode, } from "./errors.js";
 export { todo, isTodo, findTodos, TODO_SYMBOL, type TodoSentinel, } from "./todo.js";
 export { presets, inferAppEnv, inferAppEnvDetailed, type AppEnvPreset, type InferAppEnvOptions, type InferAppEnvResult, type VercelMapping, type NetlifyMapping, type GithubActionsOptions, type CloudflarePagesOptions, type RailwayMapping, type NodeEnvMapping, } from "./presets.js";
 export { introspectEnvSchema, type EnvField, type IntrospectOptions, DEFAULT_SECRET_PATTERNS, } from "./introspect.js";
-export { loadNodeEnv, loadViteEnv } from "./loaders/index.js";
+export { loadNodeEnv } from "./loaders/index.js";
 export { loadDotenvFile, parseDotenv } from "./loaders/dotenv-file.js";
 export { loadDotenvCascade, type LoadDotenvCascadeOptions, type DotenvCascadeResult, } from "./loaders/dotenv-cascade.js";
 export { deepMerge, type DeepPartial } from "./utils/deep-merge.js";

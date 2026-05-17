@@ -8,6 +8,50 @@ under `[Unreleased]` and are promoted to a versioned section when
 
 ## [Unreleased]
 
+### Added
+
+- **`docs/ARCHITECTURE.md`** — contributor-facing reference covering
+  the layering rules, file/directory naming conventions, ESM
+  resolution discipline, and the core code patterns (factory +
+  frozen loader, define-time vs load-time validation, CLI
+  `run`/`build`/`print` triplet, generator purity, error throwing,
+  preset shape, build-tool plugin shape).
+- **`raise(code, message, options?)`** helper in `errors.ts` —
+  terse single-call alternative to `throw new NodeSettingsError(...)`
+  that returns `never` for cleaner control flow.
+- **`utils/zod-issues.ts`** — `zodIssuesOf` + `formatZodIssues`
+  consolidate the three previously-duplicated `ZodError → path/message`
+  formatters into one source of truth.
+- **Five new `NodeSettingsErrorCode` values** wrap previously-bare
+  fs/parse failures so callers can match on `.code`:
+  `CONFIG_NOT_FOUND`, `CONFIG_LOAD_FAILED`, `CONFIG_INVALID_EXPORT`,
+  `FILE_READ_FAILED`, `K8S_YAML_PARSE_FAILED`. Documented in
+  `docs/ERRORS.md`.
+- **`readDotenvSafe(path)`** in `loaders/dotenv-file.ts` — wraps
+  `readFileSync` failures in `FILE_READ_FAILED`.
+
+### Changed
+
+- **`cli/generate.ts`** rewritten around a `HANDLERS` dispatch table.
+  Each generator is a single registry entry with its aliases and a
+  `run(loader, args)` function; the 90-line switch becomes a Map lookup.
+- **`cli/check.ts`, `cli/inspect.ts`, `cli/preflight.ts`** share a
+  new `cli/workspace-runner.ts` for workspace setup, header rendering,
+  and per-package banners. Removes ~80 lines of duplicated boilerplate.
+- **`introspect.ts`** primitive-type detection replaced with a
+  `PRIMITIVE_TYPE_RESOLVERS` lookup map; supporting a new primitive
+  type is now a one-line table entry instead of an `else if` branch.
+- Internal `formatZodError` / inline `err.errors.map(...)` formatters
+  replaced with the shared `formatZodIssues` / `zodIssuesOf`.
+
+### Removed
+
+- **`loadViteEnv`** (was a placeholder returning `{}`) and its
+  source `src/loaders/vite-env.ts`. Vite consumers should use
+  `import.meta.env` directly or `@env-kit/node-settings/vite`.
+  **Breaking change** — slated for v1.0.0.
+- **`src/utils/index.ts`** — unused barrel, no external impact.
+
 ## [0.12.0] — 2026-05-16
 ### Added
 

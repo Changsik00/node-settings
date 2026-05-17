@@ -34,6 +34,7 @@ import {
   introspectEnvSchema,
   loadNodeEnv,
   loadDotenvFile,
+  loadDotenvCascade,
   checkPerEnvCompleteness,
   NodeSettingsError,
 } from "@env-kit/node-settings";
@@ -387,11 +388,12 @@ src/
   utils/
     deep-merge.ts        # deepMerge / DeepPartial
     merge-per-env.ts     # mergePerEnv helper
+    zod-issues.ts        # ZodError → {path, message}[] / formatted string
 
   loaders/
     node-env.ts          # loadNodeEnv()
-    vite-env.ts          # loadViteEnv() — placeholder
-    dotenv-file.ts       # parseDotenv / loadDotenvFile
+    dotenv-file.ts       # parseDotenv / loadDotenvFile / readDotenvSafe
+    dotenv-cascade.ts    # loadDotenvCascade — Vite/Next-style .env layering
 
   cli/
     bin.ts               # #!/usr/bin/env node entrypoint
