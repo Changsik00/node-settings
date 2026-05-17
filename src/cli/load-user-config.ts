@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
 import type { z } from "zod";
 import type { SettingsLoader } from "../define-settings.js";
+import { raise } from "../errors.js";
 
 const CANDIDATE_FILES = [
   "node-settings.config.ts",
@@ -70,26 +71,44 @@ export async function loadUserConfig(
     : findConfigUpwards(cwd);
 
   if (!resolved) {
-    throw new Error(
-      [
-        "[node-settings] no config file found.",
-        `Searched upward from ${cwd} for one of:`,
-        ...CANDIDATE_FILES.map((f) => `  - ${f}`),
-        "Pass --config <path> to point at one explicitly.",
-      ].join("\n"),
+    raise(
+      "CONFIG_NOT_FOUND",
+      `no settings config found searching upward from ${cwd}.`,
+      {
+        hint: `Expected one of ${CANDIDATE_FILES.join(", ")}. Pass --config <path> to point at one explicitly.`,
+      },
     );
   }
   if (!existsSync(resolved)) {
-    throw new Error(`[node-settings] config file not found: ${resolved}`);
+    raise("CONFIG_NOT_FOUND", `config file not found: ${resolved}.`, {
+      hint: "Check the path passed to --config (or the auto-discovered candidate). Relative paths resolve from the cwd.",
+    });
   }
 
-  const mod = await importModule(resolved);
+  let mod: Record<string, unknown>;
+  try {
+    mod = await importModule(resolved);
+  } catch (err) {
+    raise(
+      "CONFIG_LOAD_FAILED",
+      `failed to load config ${resolved}: ${err instanceof Error ? err.message : String(err)}`,
+      {
+        hint: "Most often a syntax error in the config file or a missing dependency it imports. The underlying error is attached as `cause`.",
+        cause: err,
+      },
+    );
+  }
+
   const candidate =
     (mod && (mod.default ?? (mod as Record<string, unknown>).settings)) ?? null;
 
   if (!isSettingsLoader(candidate)) {
-    throw new Error(
-      `[node-settings] ${resolved} must export a default (or named 'settings') value created by defineSettings(...).`,
+    raise(
+      "CONFIG_INVALID_EXPORT",
+      `${resolved} must export a defineSettings(...) loader.`,
+      {
+        hint: "Provide either `export default defineSettings({...})` or `export const settings = defineSettings({...})`.",
+      },
     );
   }
 

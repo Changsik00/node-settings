@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseDotenv } from "./dotenv-file.js";
+import { parseDotenv, readDotenvSafe } from "./dotenv-file.js";
 import type { AppEnvPreset } from "../presets.js";
 
 export interface LoadDotenvCascadeOptions {
@@ -98,7 +98,7 @@ export function loadDotenvCascade(
   const basePath = resolve(cwd, ".env");
   let baseParsed: Record<string, string> = {};
   if (existsSync(basePath)) {
-    baseParsed = parseDotenv(readFileSync(basePath, "utf8"));
+    baseParsed = parseDotenv(readDotenvSafe(basePath));
     Object.assign(merged, baseParsed);
     loaded.push(basePath);
   } else {
@@ -133,7 +133,7 @@ export function loadDotenvCascade(
       continue;
     }
     if (existsSync(path)) {
-      const parsed = parseDotenv(readFileSync(path, "utf8"));
+      const parsed = parseDotenv(readDotenvSafe(path));
       Object.assign(merged, parsed);
       loaded.push(path);
     } else {

@@ -5,6 +5,7 @@ import {
   parseK8sYaml,
   type DiffReport,
 } from "../diff-k8s.js";
+import { raise, NodeSettingsError } from "../errors.js";
 import { loadUserConfig } from "./load-user-config.js";
 import type { ParsedArgs } from "./args.js";
 import { flagString } from "./args.js";
@@ -78,7 +79,18 @@ export async function runDiff(args: ParsedArgs): Promise<number> {
     return 2;
   }
 
-  const parsed = parseK8sYaml(yamlText);
+  let parsed: ReturnType<typeof parseK8sYaml>;
+  try {
+    parsed = parseK8sYaml(yamlText);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (json) {
+      emitJson({ ok: false, error: message });
+    } else {
+      console.error(`[node-settings] diff: ${message}`);
+    }
+    return 2;
+  }
   const report = diffAgainstSchema(parsed, fields);
   const result: DiffCliResult = {
     ok: report.ok,
@@ -104,11 +116,20 @@ async function readSource(source: string | undefined): Promise<string | null> {
     return await readStdin();
   }
   if (!existsSync(source)) {
-    throw Object.assign(new Error(`yaml input not found: ${source}`), {
-      code: "DIFF_INPUT_NOT_FOUND",
+    raise("FILE_READ_FAILED", `yaml input not found: ${source}.`, {
+      hint: "Pass a readable file path, or pipe a manifest into stdin and use `-` as the argument.",
     });
   }
-  return readFileSync(source, "utf8");
+  try {
+    return readFileSync(source, "utf8");
+  } catch (err) {
+    if (err instanceof NodeSettingsError) throw err;
+    raise(
+      "FILE_READ_FAILED",
+      `failed to read yaml input ${source}: ${err instanceof Error ? err.message : String(err)}`,
+      { hint: "Check the file's read permissions.", cause: err },
+    );
+  }
 }
 
 function readStdin(): Promise<string> {

@@ -1,5 +1,6 @@
 import { parseAllDocuments } from "yaml";
 import type { EnvField } from "./introspect.js";
+import { raise } from "./errors.js";
 
 /**
  * One mismatch between a live K8s manifest and the env schema.
@@ -68,8 +69,27 @@ export function parseK8sYaml(source: string): ParsedK8sInput {
   const configMapKeys = new Set<string>();
   const secretKeys = new Set<string>();
 
-  const docs = parseAllDocuments(source);
+  let docs: ReturnType<typeof parseAllDocuments>;
+  try {
+    docs = parseAllDocuments(source);
+  } catch (err) {
+    raise(
+      "K8S_YAML_PARSE_FAILED",
+      `failed to parse YAML input: ${err instanceof Error ? err.message : String(err)}`,
+      {
+        hint: "Run `kubectl get cm,secret -n <ns> -o yaml` to produce a valid multi-doc stream, or pass a file with `node-settings diff <path>`.",
+        cause: err,
+      },
+    );
+  }
+
   for (const doc of docs) {
+    if (doc.errors.length > 0) {
+      const first = doc.errors[0];
+      raise("K8S_YAML_PARSE_FAILED", `invalid YAML: ${first?.message ?? "unknown error"}`, {
+        hint: "Validate the manifest with `kubectl apply --dry-run=client -f -` before piping it into `node-settings diff`.",
+      });
+    }
     const value = doc.toJS() as unknown;
     if (!isObject(value)) continue;
     const kind = value.kind;

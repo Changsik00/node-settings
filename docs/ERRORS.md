@@ -58,3 +58,26 @@ the schema, or when the runtime mode is unknown.
 
 Zod errors at load time are wrapped as `ENV_VALIDATION_FAILED` with a
 path-by-path summary and the original `ZodError` preserved as `.cause`.
+
+### Raised by the CLI and helper loaders
+
+These fire from the `node-settings` CLI or from filesystem-touching
+helpers (`loadDotenvFile`, `loadDotenvCascade`, `parseK8sYaml`). They
+surface as exit code 2 from CLI subcommands (caller-supplied input is
+malformed) and as a thrown `NodeSettingsError` from library calls.
+
+| Code                       | When                                                                |
+| -------------------------- | ------------------------------------------------------------------- |
+| `CONFIG_NOT_FOUND`         | CLI walked up from `cwd` and found no `node-settings.config.*` etc. |
+| `CONFIG_LOAD_FAILED`       | Config file found but failed to import — syntax error or missing dep.|
+| `CONFIG_INVALID_EXPORT`    | Config loaded but did not export a `defineSettings(...)` loader.    |
+| `FILE_READ_FAILED`         | Dotenv file or K8s manifest could not be read (perms, ENOENT, etc.).|
+| `K8S_YAML_PARSE_FAILED`    | YAML stream passed to `node-settings diff` did not parse.           |
+
+### Client env (`defineClientEnv`)
+
+| Code                            | When                                                          |
+| ------------------------------- | ------------------------------------------------------------- |
+| `CLIENT_ENV_PREFIX_VIOLATION`   | A schema key does not start with the declared `prefix`.       |
+| `CLIENT_ENV_UNDECLARED`         | `strict: true` and runtime source has a prefixed key not in the schema. |
+| `CLIENT_ENV_VALIDATION_FAILED`  | Zod validation of the client-side env failed.                 |

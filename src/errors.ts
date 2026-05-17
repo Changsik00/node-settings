@@ -40,7 +40,37 @@ export type NodeSettingsErrorCode =
    */
   | "CLIENT_ENV_UNDECLARED"
   /** Zod validation of the client-side env failed. */
-  | "CLIENT_ENV_VALIDATION_FAILED";
+  | "CLIENT_ENV_VALIDATION_FAILED"
+  /**
+   * The CLI walked up from `cwd` and could not find a
+   * `node-settings.config.*` or `settings.config.*` file before hitting
+   * a workspace marker (`.git`, `pnpm-workspace.yaml`, …) or the
+   * filesystem root.
+   */
+  | "CONFIG_NOT_FOUND"
+  /**
+   * The config file was found but failed to load — typically a syntax
+   * error in the user's TS/JS source, or a missing dependency it tried
+   * to import. The original error is attached as `cause`.
+   */
+  | "CONFIG_LOAD_FAILED"
+  /**
+   * The config module loaded successfully but did not export a value
+   * created by `defineSettings(...)`. We accept either a `default`
+   * export or a named `settings` export.
+   */
+  | "CONFIG_INVALID_EXPORT"
+  /**
+   * A file the package needed to read (dotenv file, K8s manifest, etc.)
+   * failed at the filesystem level — permission denied, broken symlink,
+   * unreadable encoding, etc. The original fs error is attached as `cause`.
+   */
+  | "FILE_READ_FAILED"
+  /**
+   * The YAML blob passed to `diff` could not be parsed. The CLI surfaces
+   * this as exit code 2 (caller-supplied input is malformed).
+   */
+  | "K8S_YAML_PARSE_FAILED";
 
 /**
  * Single error class for every problem this package can raise. Carries

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { raise } from "../errors.js";
 
 /**
  * Minimal `.env` file parser used by the CLI for `validate` / `check`.
@@ -38,6 +39,28 @@ export function parseDotenv(content: string): Record<string, string> {
   return out;
 }
 
+/**
+ * Read a `.env`-style file from disk and return its parsed key/value map.
+ *
+ * Filesystem failures are wrapped in `NodeSettingsError` with code
+ * `FILE_READ_FAILED` so callers can distinguish them from validation
+ * errors. The original error (e.g. ENOENT, EACCES) is preserved on `cause`.
+ */
 export function loadDotenvFile(path: string): Record<string, string> {
-  return parseDotenv(readFileSync(path, "utf8"));
+  return parseDotenv(readDotenvSafe(path));
+}
+
+export function readDotenvSafe(path: string): string {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (err) {
+    raise(
+      "FILE_READ_FAILED",
+      `failed to read dotenv file ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      {
+        hint: "Check that the file exists and the process has read permission. Pass a different path with --env-file or fix the file's permissions.",
+        cause: err,
+      },
+    );
+  }
 }
