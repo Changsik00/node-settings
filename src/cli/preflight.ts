@@ -1,10 +1,11 @@
-import { relative } from "node:path";
 import type { ParsedArgs } from "./args.js";
 import { flagBool, flagString } from "./args.js";
 import {
-  discoverWorkspacePackages,
-  findWorkspaceRoot,
-} from "./workspace.js";
+  setupWorkspaceRun,
+  printWorkspaceHeader,
+  printPackageBanner,
+  printPackageError,
+} from "./workspace-runner.js";
 import {
   buildValidateResult,
   printValidateResultText,
@@ -184,29 +185,18 @@ function printPreflightResultText(result: PreflightResult): void {
 }
 
 async function runPreflightWorkspace(args: ParsedArgs): Promise<number> {
-  const json = isJson(args);
+  const ctx = setupWorkspaceRun(args);
+  if (typeof ctx === "number") return ctx;
   const allowWarnings = flagBool(args, "allow-warnings", true);
   const envFileArg = args.positionals[1] ?? flagString(args, "env-file");
-  const cwd = process.cwd();
-  const root = findWorkspaceRoot(cwd) ?? cwd;
-  const packages = discoverWorkspacePackages(root);
-  if (packages.length === 0) {
-    const msg = `--workspace: no packages with a settings config found under ${root}`;
-    if (json) {
-      emitJson({ ok: false, workspaceRoot: root, packages: [], error: msg });
-    } else {
-      console.error(`[node-settings] ${msg}`);
-    }
-    return 2;
-  }
 
   const workspaceResult: WorkspacePreflightResult = {
     ok: true,
-    workspaceRoot: root,
+    workspaceRoot: ctx.root,
     packages: [],
   };
   let worst = 0;
-  for (const pkg of packages) {
+  for (const pkg of ctx.packages) {
     const built = await runPreflightSingle(pkg.configPath, envFileArg, args);
     if (built.envFileMissing || built.checkArgsInvalid) {
       workspaceResult.packages.push({
@@ -228,31 +218,24 @@ async function runPreflightWorkspace(args: ParsedArgs): Promise<number> {
       configPath: pkg.configPath,
       result: built.result,
     });
-    if (!built.result.ok) {
-      workspaceResult.ok = false;
-      worst = Math.max(worst, 1);
-    }
-    if (
+    const hasWarning =
       !allowWarnings &&
       "report" in built.result.check &&
-      built.result.check.report.issues.some((i) => i.severity === "warning")
-    ) {
+      built.result.check.report.issues.some((i) => i.severity === "warning");
+    if (!built.result.ok || hasWarning) {
       workspaceResult.ok = false;
       worst = Math.max(worst, 1);
     }
   }
 
-  if (json) {
+  if (ctx.json) {
     emitJson(workspaceResult);
   } else {
-    console.log(`workspace root: ${root}`);
-    console.log(`packages: ${packages.length}`);
-    console.log("");
+    printWorkspaceHeader(ctx.root, ctx.packages.length);
     for (const pkgResult of workspaceResult.packages) {
-      const rel = relative(root, pkgResult.configPath);
-      console.log(`=== ${pkgResult.name} (${rel}) ===`);
+      printPackageBanner(ctx.root, pkgResult.name, pkgResult.configPath);
       if ("error" in pkgResult.result) {
-        console.error(`  [node-settings] ${pkgResult.result.error}`);
+        printPackageError(pkgResult.result.error);
       } else {
         printPreflightResultText(pkgResult.result);
       }

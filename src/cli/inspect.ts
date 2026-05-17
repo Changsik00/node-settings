@@ -1,11 +1,12 @@
-import { relative } from "node:path";
 import type { ParsedArgs } from "./args.js";
 import { flagBool, flagString } from "./args.js";
 import { loadUserConfig } from "./load-user-config.js";
 import {
-  discoverWorkspacePackages,
-  findWorkspaceRoot,
-} from "./workspace.js";
+  setupWorkspaceRun,
+  printWorkspaceHeader,
+  printPackageBanner,
+  printPackageError,
+} from "./workspace-runner.js";
 import { deepMerge } from "../utils/deep-merge.js";
 import { isTodo } from "../todo.js";
 import type { EnvField } from "../introspect.js";
@@ -124,27 +125,16 @@ function printInspectResultText(result: InspectResult): void {
 }
 
 async function runInspectWorkspace(args: ParsedArgs): Promise<number> {
-  const json = isJson(args);
-  const cwd = process.cwd();
-  const root = findWorkspaceRoot(cwd) ?? cwd;
-  const packages = discoverWorkspacePackages(root);
-  if (packages.length === 0) {
-    const msg = `--workspace: no packages with a settings config found under ${root}`;
-    if (json) {
-      emitJson({ ok: false, workspaceRoot: root, packages: [], error: msg });
-    } else {
-      console.error(`[node-settings] ${msg}`);
-    }
-    return 2;
-  }
+  const ctx = setupWorkspaceRun(args);
+  if (typeof ctx === "number") return ctx;
 
   const workspaceResult: WorkspaceInspectResult = {
     ok: true,
-    workspaceRoot: root,
+    workspaceRoot: ctx.root,
     packages: [],
   };
   let worst = 0;
-  for (const pkg of packages) {
+  for (const pkg of ctx.packages) {
     try {
       const single = await buildInspectResult(pkg.configPath, args);
       workspaceResult.packages.push({
@@ -157,28 +147,27 @@ async function runInspectWorkspace(args: ParsedArgs): Promise<number> {
         worst = Math.max(worst, 1);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       workspaceResult.packages.push({
         name: pkg.name,
         configPath: pkg.configPath,
-        result: { ok: false, error: message },
+        result: {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        },
       });
       workspaceResult.ok = false;
       worst = Math.max(worst, 1);
     }
   }
 
-  if (json) {
+  if (ctx.json) {
     emitJson(workspaceResult);
   } else {
-    console.log(`workspace root: ${root}`);
-    console.log(`packages: ${packages.length}`);
-    console.log("");
+    printWorkspaceHeader(ctx.root, ctx.packages.length);
     for (const pkgResult of workspaceResult.packages) {
-      const rel = relative(root, pkgResult.configPath);
-      console.log(`=== ${pkgResult.name} (${rel}) ===`);
+      printPackageBanner(ctx.root, pkgResult.name, pkgResult.configPath);
       if ("error" in pkgResult.result) {
-        console.error(`  [node-settings] ${pkgResult.result.error}`);
+        printPackageError(pkgResult.result.error);
       } else {
         printInspectResultText(pkgResult.result);
       }
