@@ -8,13 +8,13 @@ One zod schema → typed runtime config + `.env.example` + Markdown docs + Kuber
 [![CI](https://github.com/Changsik00/node-settings/actions/workflows/ci.yml/badge.svg)](https://github.com/Changsik00/node-settings/actions/workflows/ci.yml)
 [![Bundle size](https://img.shields.io/bundlephobia/minzip/@env-kit/node-settings?label=min%2Bgzip)](https://bundlephobia.com/package/@env-kit/node-settings)
 [![Install size](https://packagephobia.com/badge?p=@env-kit/node-settings)](https://packagephobia.com/result?p=@env-kit/node-settings)
-[![Tests](https://img.shields.io/badge/tests-292%20passing-success?logo=vitest&logoColor=white)](./src)
-[![Coverage](https://img.shields.io/badge/coverage-87%25-brightgreen)](./vitest.config.ts)
+[![Tests](https://img.shields.io/badge/tests-294%20passing-success?logo=vitest&logoColor=white)](./src)
+[![Coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)](./vitest.config.ts)
 [![Types: TypeScript](https://img.shields.io/badge/types-TypeScript-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-[**Sample**](./sample) · [**Configuration**](./docs/CONFIGURATION.md) · [**Deployment**](./docs/DEPLOYMENT.md) · [**Errors**](./docs/ERRORS.md)
+[**Sample**](./sample) · [**Configuration**](./docs/CONFIGURATION.md) · [**Deployment**](./docs/DEPLOYMENT.md) · [**Errors**](./docs/ERRORS.md) · [**Architecture**](./docs/ARCHITECTURE.md) · [**Testing**](./docs/TESTING.md)
 
 </div>
 
@@ -135,26 +135,68 @@ For a complete worked example with split-file config + monorepo
 
 ## Why use this
 
-- **Schema-first.** One `z.object({...})` becomes runtime config,
-  `.env.example`, ENV.md docs, and K8s ConfigMap + Secret. No drift.
+- **Schema-first, single source of truth.** One `z.object({...})`
+  becomes runtime config, `.env.example`, Markdown docs, K8s ConfigMap +
+  Secret, JSON Schema, Terraform `.tfvars`, and a docker-compose
+  fragment. Edit the schema, regenerate downstream — nothing can drift.
 - **Layered config.** `defaults` + `perEnv[mode]` + optional JSON
-  override. Result is `Object.freeze`'d.
+  override at boot. Result is `Object.freeze`'d.
 - **Build once, deploy many.** Same image, `APP_ENV`-driven branching.
-- **Monorepo-friendly.** `extends: [baseLoader]` for shared base
+  Runtime override (`APP_CONFIG_JSON`) lets ops patch values without
+  redeploying.
+- **Monorepo-friendly.** `extends: [baseLoader]` composes shared base
   configs ([t3-oss/env](https://github.com/t3-oss/t3-env)-style).
-- **`.env.<mode>` cascade.** Opt-in helper that follows the Vite /
-  Next.js / dotenv-flow file convention.
+- **`.env.<mode>` cascade.** Opt-in `loadDotenvCascade()` follows the
+  Vite / Next.js / dotenv-flow convention.
 - **Platform presets.** `presets.vercel()`, `presets.netlify()`,
-  `presets.githubActions(...)`, ... map platform signals to `APP_ENV`.
+  `presets.githubActions(...)`, … map platform signals to `APP_ENV`.
 - **Defensive at definition time.** Typo'd `perEnv` key, wrong
-  `envKey`, missing override key — all caught when the loader is
-  *defined*, not on the first request.
+  `envKey`, missing override key — caught when the loader is *defined*,
+  not on the first request.
 - **`todo(reason)` markers.** Mark unfilled config slots with a
-  type-safe sentinel; the loader fails loudly with `PER_ENV_TODO`
-  when an env tries to load with one still in place.
-- **Stable error API.** `NodeSettingsError.code` you can switch on.
+  type-safe sentinel; the loader fails loudly with `PER_ENV_TODO` if
+  an env tries to load with one still in place.
+- **Severity-aware error catalog.** Every throw is a
+  `NodeSettingsError` with a stable `.code`, a `.severity` bucket
+  (`config | runtime | io | usage`), a `.title`, and a `.docsUrl`.
+  Drop `reportError(err)` into your logger to get a structured
+  `ErrorReport` ready for Sentry / log aggregators.
+- **Build-time validation plugins.** Vite, Next.js, and esbuild
+  plugins fail the build the moment an env is invalid — no waiting
+  for the app to boot.
 - **ESM, Node ≥ 18.** Only `jiti` (TS config loading) at runtime;
   `zod` is a peer dep.
+
+## Design principles
+
+The library codifies four patterns we lean on hard. They show up in
+the public API *and* in how the package is built internally —
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) has the full
+treatment.
+
+1. **Single source of truth, everything else derived.** A `z.object`
+   produces seven downstream artifacts. The internal
+   [`ERROR_CATALOG`](./src/errors.ts) follows the same shape:
+   `NodeSettingsErrorCode`, `err.severity`, `err.docsUrl`,
+   `reportError()` output, and `docs/ERRORS.md` are all generated
+   from a single record. `pnpm verify:errors` fails CI if any of them
+   drift.
+2. **Fail at the earliest moment possible.** Misconfiguration → at
+   `defineSettings(...)` call time. Bad env → at boot (before the
+   first request). `todo(...)` placeholder → when the *target* env
+   tries to load, not when any env loads. Vite / Next / esbuild
+   plugins → at build time, before bundling.
+3. **Stable contract; evolving messages.** `.code` and `.severity` are
+   part of the public API and are versioned strictly. `.message` is
+   a human-friendly diagnostic and may improve in minor versions. The
+   `api-surface/*.d.ts` snapshots are the contract for types; the
+   catalog is the contract for errors. Drift fails CI.
+4. **Frozen output, layered architecture.** Loader output is
+   `Object.freeze`'d so accidental mutation is impossible. Source is
+   organised in strict layers (errors / utils → tools → core →
+   adapters); higher layers may import from lower but never the
+   reverse. Tests follow the standard *unit / contract / integration /
+   e2e* taxonomy — see [`docs/TESTING.md`](./docs/TESTING.md).
 
 ## Comparison
 
@@ -174,11 +216,15 @@ For a complete worked example with split-file config + monorepo
 | **Docker Compose fragment generation**               |   –    |      –      |     –      |    –    |      –      |        ✅         |
 | **Build-time validation plugins (Vite + Next + esbuild)** |   –    |      –      |     –      |    –    |      –      |        ✅         |
 | CLI (validate / check / inspect / generate)          |   –    |      –      |     –      |    –    |      –      |        ✅         |
+| **Severity-aware error catalog + `reportError()`**  |   –    |      –      |     –      |    –    |      –      |        ✅         |
+| **CI-enforced contract checks (api-surface, errors, dist, pack)** | – | – | – | – | – | ✅ |
 
 The differentiation is concentrated in monorepo composition, per-env
-layering with todo-sentinels, and first-class infra handoff (K8s
-manifests, Terraform tfvars, Docker Compose, Vite / Next / esbuild plugins).
-`node-settings` is new; the others have years of usage behind them.
+layering with todo-sentinels, first-class infra handoff (K8s manifests,
+Terraform tfvars, Docker Compose, Vite / Next / esbuild plugins), and
+the operational ergonomics around errors (catalog → severity →
+`reportError()` → log aggregator). `node-settings` is new; the others
+have years of usage behind them.
 
 ## CLI
 
@@ -325,6 +371,66 @@ Conventional prefixes: `NEXT_PUBLIC_` (Next.js), `VITE_` (Vite),
 `PUBLIC_` (Astro, SvelteKit). Pair with `defineSettings` for the
 server side; the prefix is your compile-time *and* runtime firewall.
 
+## Error handling
+
+Every throw is a `NodeSettingsError` with a stable, programmatically
+matchable contract. Match on `.code` or `.severity` — never on
+`.message`, which can evolve in minor versions.
+
+<!-- doc-test:check -->
+```ts
+import { NodeSettingsError, reportError } from "@env-kit/node-settings";
+
+declare const log: (payload: unknown) => void;
+
+try {
+  // ... settings(process.env) etc.
+  throw new NodeSettingsError("ENV_VALIDATION_FAILED", "demo");
+} catch (err) {
+  if (err instanceof NodeSettingsError) {
+    if (err.severity === "runtime") {
+      // operator alarm — env is missing or wrong at boot
+    } else if (err.severity === "config") {
+      // developer alarm — defineSettings(...) misconfigured
+    }
+    console.error(`${err.title}: ${err.message}`);
+    console.error(`  see ${err.docsUrl}`);
+  }
+
+  // Or hand the structured report to a logger / dashboard
+  log(reportError(err));
+}
+```
+
+`reportError(err)` distils any throw (`NodeSettingsError`, `ZodError`,
+plain `Error`) into a JSON-serialisable `ErrorReport`:
+
+```ts
+{
+  code: "ENV_VALIDATION_FAILED",
+  severity: "runtime",
+  title: "Zod env validation failed",
+  message: "env validation failed:\n  - DB_HOST: Required",
+  hint: "Check that every required env var is set and matches the schema.",
+  docsUrl: "https://.../docs/ERRORS.md#env_validation_failed",
+  issues: [{ path: "DB_HOST", message: "Required" }],
+  cause: { name: "ZodError", message: "..." },
+}
+```
+
+**Severity buckets** route to the right alarm channel without
+hard-coding code lists:
+
+| Severity   | When raised                                              | Who fixes it           |
+| ---------- | -------------------------------------------------------- | ---------------------- |
+| `config`   | `defineSettings(...)` / `defineClientEnv(...)` call time | **Developer** (source) |
+| `runtime`  | Loader called with a bad env at boot                     | **Operator** (env)     |
+| `io`       | CLI / loader filesystem / parse failures                 | Operator or CI         |
+| `usage`    | Library API called incorrectly                           | **Developer** (source) |
+
+See [**docs/ERRORS.md**](./docs/ERRORS.md) for the complete catalog
+grouped by severity, with one row per stable code.
+
 ## K8s drift detection
 
 The `generate k8s` command writes ConfigMap + Secret YAML from your
@@ -351,6 +457,8 @@ Exit codes: `0` for clean / warnings-only, `1` on any error,
 
 ## Documentation
 
+For users:
+
 - **[`sample/`](./sample)** — complete worked example (env files +
   split-file config + `settings.ts` that wires everything).
 - **[Configuration guide](./docs/CONFIGURATION.md)** — file layouts,
@@ -359,10 +467,28 @@ Exit codes: `0` for clean / warnings-only, `1` on any error,
 - **[Deployment guide](./docs/DEPLOYMENT.md)** — setting `APP_ENV` on
   every common platform, opt-in `presets.*` adapters, the
   `.env.<mode>` cascade.
-- **[Error codes](./docs/ERRORS.md)** — every `NodeSettingsError.code`.
-- **[Migration guides](./docs/migration/)** — recipes for moving
-  from t3-oss/env, convict, node-config, or dotenv-flow.
-- **[AGENTS.md](./AGENTS.md)** — context for AI coding assistants.
+- **[Error codes](./docs/ERRORS.md)** — every `NodeSettingsError.code`,
+  severity, hint, and docs anchor. Auto-generated from `ERROR_CATALOG`.
+- **[Migration guides](./docs/migration/)** — recipes for moving from
+  t3-oss/env, convict, node-config, or dotenv-flow.
+
+For contributors:
+
+- **[Architecture](./docs/ARCHITECTURE.md)** — layering rules, file /
+  directory conventions, ESM resolution discipline, and the nine core
+  code patterns (factory + frozen loader, error catalog, CLI
+  subcommand triplet, generator purity, dispatch registry, workspace
+  runner, …).
+- **[Testing strategy](./docs/TESTING.md)** — unit / contract /
+  integration / e2e taxonomy, the nine-layer verify chain, coverage
+  philosophy, mutation testing setup, decision tree for new tests.
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — dev loop, commit style,
+  release flow.
+- **[AGENTS.md](./AGENTS.md)** — deep context for AI coding assistants
+  working in this repo.
+
+Meta:
+
 - **[llms.txt](./llms.txt)** — [llmstxt.org](https://llmstxt.org/) doc index.
 - **[RELEASING.md](./RELEASING.md)** — tag-based release flow.
 - **[BACKLOG.md](./BACKLOG.md)** — tracked future work.

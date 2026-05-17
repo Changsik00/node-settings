@@ -36,7 +36,12 @@ import {
   loadDotenvFile,
   loadDotenvCascade,
   checkPerEnvCompleteness,
+  // Error handling
   NodeSettingsError,
+  ERROR_CATALOG,
+  reportError,
+  type ErrorSeverity,
+  type ErrorReport,
 } from "@env-kit/node-settings";
 
 // Generators (used by the CLI; importable directly for custom scripts)
@@ -46,11 +51,10 @@ import {
   generateK8sManifests,
 } from "@env-kit/node-settings/generators";
 
-// Vite plugin — validates env at config-resolve time, fails build / dev fast
+// Build-time validation plugins (each is an optional peer dep)
 import { nodeSettings } from "@env-kit/node-settings/vite";
-
-// Next.js plugin — validates env during next.config evaluation
 import { withNodeSettings } from "@env-kit/node-settings/next";
+import { nodeSettings as esbuildNodeSettings } from "@env-kit/node-settings/esbuild";
 ```
 
 CLI binary: `node-settings`
@@ -345,111 +349,139 @@ Override globally:
 ## Error handling
 
 Every error this package throws is a `NodeSettingsError` carrying a
-stable `code` plus an optional `hint`. Match on `code`, not `message`.
+stable `code` (one of `NodeSettingsErrorCode`), a `severity` bucket,
+a `title`, a `hint`, and a `docsUrl`. Match on `code` or `severity`,
+not `message`.
 
-| `code`                     | When it happens                                              |
-| -------------------------- | ------------------------------------------------------------ |
-| `INVALID_ENV_SCHEMA`       | `envSchema` is not a `z.object({...})`.                      |
-| `MISSING_ENV_KEY`          | `envKey` not in the (merged) schema.                         |
-| `INVALID_ENV_KEY_TYPE`     | `envKey` is not `z.string()` / `z.enum(...)`.                |
-| `INVALID_OVERRIDE_KEY`     | `overrideEnvKey` not in the (merged) schema.                 |
-| `PER_ENV_EMPTY`            | `perEnv` has no branches at all.                             |
-| `PER_ENV_KEY_NOT_IN_ENUM`  | `perEnv` branch is not a value of the `envKey` enum (typo).  |
-| `PER_ENV_BRANCH_MISSING`   | Runtime: no `perEnv` branch matches the parsed envKey value. |
-| `PER_ENV_TODO`             | Loaded branch still has unfilled `todo(...)` sentinels.      |
-| `INVALID_EXTENDS_ITEM`     | `extends[i]` is not a `defineSettings(...)` return value.    |
-| `OVERRIDE_JSON_PARSE`      | `overrideEnvKey` env var is not valid JSON.                  |
-| `ENV_VALIDATION_FAILED`    | Zod env validation failed at runtime.                        |
-| `CLIENT_ENV_PREFIX_VIOLATION` | `defineClientEnv` schema key missing the declared prefix. |
-| `CLIENT_ENV_UNDECLARED`    | `strict: true` saw a prefixed key not in the client schema.  |
-| `CLIENT_ENV_VALIDATION_FAILED` | Zod validation of the client-side env failed.            |
+```ts
+try {
+  const cfg = settings(process.env);
+} catch (err) {
+  if (err instanceof NodeSettingsError) {
+    if (err.severity === "runtime") {
+      // operator alarm — bad env at boot
+    }
+    console.error(`${err.title}: ${err.message}`);
+    console.error(`docs: ${err.docsUrl}`);
+  }
+  throw err;
+}
+```
 
-The first six (plus `CLIENT_ENV_PREFIX_VIOLATION`) are raised at
-factory call time. The rest surface when the loader is invoked.
+Or use the structured reporter for log aggregators / dashboards:
+
+```ts
+import { reportError } from "@env-kit/node-settings";
+
+console.error(JSON.stringify(reportError(err))); // ErrorReport
+```
+
+**Severity buckets:**
+
+| Severity   | When raised                                              | Who fixes it           |
+| ---------- | -------------------------------------------------------- | ---------------------- |
+| `config`   | `defineSettings(...)` / `defineClientEnv(...)` call time | **Developer** (source) |
+| `runtime`  | Loader called with a bad env at boot                     | **Operator** (env)     |
+| `io`       | CLI / loader filesystem / parse failures                 | Operator or CI         |
+| `usage`    | Library API called incorrectly                           | **Developer** (source) |
+
+The catalog is the single source of truth. `ERROR_CATALOG` in
+`src/errors.ts` carries every entry's severity, title, and docs anchor;
+`NodeSettingsErrorCode` is `keyof typeof ERROR_CATALOG`, and
+`docs/ERRORS.md` regenerates from it via `pnpm gen:errors-doc`.
+`pnpm verify:errors` enforces that every catalog entry has a
+`raise(...)` call site and a matching `<a id="...">` anchor in the
+doc — drift between code, type, and doc fails CI.
+
+See [`docs/ERRORS.md`](./docs/ERRORS.md) for the full catalog
+grouped by severity.
 
 ## File map
 
+The package is laid out in strict layers — higher layers may import
+from lower; never the reverse. See `docs/ARCHITECTURE.md` for the
+layering diagram and rules.
+
 ```
 src/
+  # core (public factories)
   define-settings.ts     # defineSettings(), SettingsLoader, extends merge
   client-env.ts          # defineClientEnv() — prefix-gated browser-safe env
-  diff-k8s.ts            # parseK8sYaml() + diffAgainstSchema()
-  introspect.ts          # zod schema -> EnvField[], secret detection
-  errors.ts              # NodeSettingsError + codes
-  validate-options.ts    # defensive checks run at defineSettings time
   check-per-env.ts       # placeholder + missing-env scanner
+  diff-k8s.ts            # parseK8sYaml() + diffAgainstSchema()
   index.ts               # public exports
+
+  # tools (pure helpers used by core + cli)
+  introspect.ts          # zod schema -> EnvField[], secret detection
+  validate-options.ts    # defensive checks run at defineSettings time
+  todo.ts                # todo() sentinel for unfilled config slots
+  presets.ts             # platform presets (vercel, netlify, github, ...)
+  errors.ts              # NodeSettingsError + ERROR_CATALOG + raise()
+  report-error.ts        # reportError() — structured ErrorReport
 
   generators/
     env-example.ts       # generateEnvExample(fields)
     markdown.ts          # generateMarkdownDocs(fields)
     k8s.ts               # generateK8sManifests(fields, { name, ... })
+    json-schema.ts       # generateJsonSchema(fields, {...})
+    tfvars.ts            # generateTfvars(fields)
+    compose.ts           # generateComposeFragment(fields, {...})
 
-  utils/
+  utils/                 # leaves (zero internal deps)
     deep-merge.ts        # deepMerge / DeepPartial
     merge-per-env.ts     # mergePerEnv helper
     zod-issues.ts        # ZodError → {path, message}[] / formatted string
 
-  loaders/
-    node-env.ts          # loadNodeEnv()
+  loaders/               # leaves (zero internal deps)
+    node-env.ts          # loadNodeEnv() — process.env passthrough
     dotenv-file.ts       # parseDotenv / loadDotenvFile / readDotenvSafe
     dotenv-cascade.ts    # loadDotenvCascade — Vite/Next-style .env layering
 
-  cli/
+  cli/                   # adapter
     bin.ts               # #!/usr/bin/env node entrypoint
     index.ts             # subcommand dispatch
     args.ts              # parseArgs (no external dep)
     load-user-config.ts  # cosmiconfig-style walk-up + jiti loader
-    validate.ts          # validate subcommand
+    validate.ts          # validate subcommand (runX/buildXResult/printXText)
     check.ts             # check subcommand
     inspect.ts           # inspect subcommand
     preflight.ts         # composite validate + check + inspect
     diff.ts              # diff subcommand (live K8s manifest vs schema)
-    generate.ts          # generate subcommand
+    generate.ts          # generate subcommand (dispatch registry)
     format.ts            # --format text|json helpers
     workspace.ts         # workspace discovery
+    workspace-runner.ts  # shared helpers used by check/inspect/preflight
     help.ts              # help text
 
-  vite/
-    index.ts             # nodeSettings() Vite plugin
-  next/
-    index.ts             # withNodeSettings() Next.js plugin (HOF)
+  # build-tool adapters (each is an optional peer dep)
+  vite/    index.ts      # nodeSettings() Vite plugin
+  next/    index.ts      # withNodeSettings() Next.js HOF
+  esbuild/ index.ts      # nodeSettings() esbuild plugin
 ```
 
-## Verification layers (running `pnpm verify`)
+## Verification layers (`pnpm verify`)
 
-Seven layers in order, used to ship to npm with confidence:
+Nine layers in order, used to ship to npm with confidence:
 
-1. **`pnpm typecheck`** — `tsc --noEmit`. Includes the type tests
-   (`src/types.test.ts`) which guard TypeScript-level contracts via
-   `expectTypeOf` (extends merging, `todo(): never`, `NodeSettingsErrorCode`
-   union, etc.).
-2. **`pnpm test:coverage`** — vitest with `@vitest/coverage-v8`.
-   Floors: lines 80, statements 80, functions 85, branches 80. Includes
-   unit tests, CLI e2e (`src/cli/cli-e2e.test.ts`), generator snapshots
-   (`src/generators/snapshots.test.ts`), and type tests.
-3. **`pnpm build`** — `tsc -b tsconfig.build.json`.
-4. **`pnpm verify:dist`** — `scripts/verify-dist.mjs`. Imports built
-   `dist/index.js`, `dist/generators/index.js`, `dist/cli/index.js`,
-   round-trips a `defineSettings` call, asserts the
-   `NodeSettingsError(PER_ENV_TODO)` contract.
-5. **`pnpm verify:sample`** — runs the CLI binary against
-   `sample/settings.ts` to catch packaging regressions.
-6. **`pnpm verify:api`** — `scripts/verify-api.mjs`. Compares each
-   built entry-point `.d.ts` (root / generators / cli) against the
-   committed snapshots in `api-surface/`. Drift fails CI; accept via
-   `node scripts/verify-api.mjs --update`.
-7. **`pnpm verify:pack`** — `scripts/verify-pack.mjs`. Runs
-   `pnpm pack`, asserts required files present and forbidden files
-   (src, sample, api-surface, tests, snapshots, docs, scripts,
-   coverage, lockfile, tsconfig) are NOT in the tarball.
+| Layer | Command                  | Catches                                                                                              |
+| ----- | ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| 1     | `pnpm typecheck`         | Type contracts (incl. `expectTypeOf` assertions in `src/types.test.ts`).                             |
+| 2     | `pnpm test:coverage`     | Unit / integration / e2e + thresholds (lines 80, stmts 80, branches 80, fns 85).                     |
+| 3     | `pnpm build`             | `tsc -b tsconfig.build.json`.                                                                        |
+| 4     | `pnpm verify:dist`       | Imports `dist/*`, asserts public exports + `NodeSettingsError` runtime contract.                     |
+| 5     | `pnpm verify:sample`     | Runs the **built** CLI against `sample/` so packaging regressions surface before publish.            |
+| 6     | `pnpm verify:api`        | Diffs `dist/*.d.ts` against committed `api-surface/*.d.ts` snapshots. Accept via `--update`.         |
+| 7     | `pnpm verify:docs`       | Compiles every `<!-- doc-test:check -->` code block from README / docs.                              |
+| 8     | `pnpm verify:errors`     | Every `ERROR_CATALOG` entry has a real `raise(...)` call + matching anchor in `docs/ERRORS.md`.      |
+| 9     | `pnpm verify:pack`       | `pnpm pack` + asserts required files in tarball and forbidden files (src, tests, sample) excluded.   |
 
-CI runs all of these on every push / PR across Node 18 / 20 / 22.
-`prepublishOnly` runs verify:dist + verify:api + verify:pack so a
-broken bundle cannot ship.
+CI runs all of these on every push / PR across Node 18 / 20 / 22 ×
+Ubuntu / macOS / Windows. `prepublishOnly` runs verify:dist + verify:api +
+verify:pack so a broken bundle cannot ship.
 
-When the user reports a regression, the first question is: which
-layer would have caught it? If none would have, add coverage there.
+When a regression slips through, ask first: which layer should have
+caught it? If none would have, add coverage there before fixing the
+bug — see `docs/TESTING.md` "When tests don't catch a bug".
 
 ## Conventions in this codebase
 

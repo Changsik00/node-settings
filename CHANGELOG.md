@@ -8,6 +8,35 @@ under `[Unreleased]` and are promoted to a versioned section when
 
 ## [Unreleased]
 
+### Documentation
+
+- **New [`docs/TESTING.md`](docs/TESTING.md)** — dedicated test
+  strategy reference. Covers the unit / contract / integration / e2e
+  taxonomy, the nine-layer verify chain, coverage philosophy, mutation
+  testing setup, decision tree for placing new tests, and conventions.
+- **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) refresh** — Testing
+  strategy section now defers to `docs/TESTING.md`; in its place,
+  two new pattern sections were added: "Single-source-of-truth as a
+  recurring discipline" (catalogues the four places the package uses
+  the schema-first pattern) and patterns 8–9 (dispatch registry for
+  `generate`, shared workspace runner for `check`/`inspect`/`preflight`).
+  Error throwing section reworked around `ERROR_CATALOG`.
+- **[`AGENTS.md`](AGENTS.md) sync** — import map adds `ERROR_CATALOG`,
+  `reportError`, `ErrorSeverity`, `ErrorReport`. Error-handling
+  section now leads with severity buckets and `reportError(err)`
+  instead of duplicating the ERRORS.md catalog table. File map
+  refreshed (adds `report-error.ts`, `presets.ts`, `todo.ts`,
+  `cli/workspace-runner.ts`, all generators). Verification layers
+  table updated from 7 → 9 with `verify:docs` + `verify:errors`.
+- **[`README.md`](README.md) refresh** — new "Design principles"
+  section showcases the four cross-cutting patterns (single source of
+  truth, fail-at-the-earliest-moment, stable contract / evolving
+  messages, frozen output + layered architecture). New "Error handling"
+  section with severity buckets, `reportError()`, and an example
+  `ErrorReport` payload. Comparison table adds rows for the
+  severity-aware error catalog and CI-enforced contract checks.
+  Test count badge 292 → 294, coverage 87% → 89%.
+
 ### Added
 
 - **`ERROR_CATALOG`** — single source of truth for every error this
