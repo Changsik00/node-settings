@@ -567,6 +567,44 @@ export default settings;
   });
 });
 
+describe("CLI e2e — --workspace empty discovery", () => {
+  let originalCwd: string;
+  let emptyRoot: string;
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+    emptyRoot = mkdtempSync(join(originalCwd, ".tmp-ws-e2e-"));
+    mkdirSync(join(emptyRoot, ".git"));
+    process.chdir(emptyRoot);
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    rmSync(emptyRoot, { recursive: true, force: true });
+  });
+
+  it("check --workspace exits 2 with a 'no packages' message when nothing is discovered", async () => {
+    const code = await runCli(["check", "--workspace"]);
+    expect(code).toBe(2);
+    const err = capture.errs.join("\n");
+    expect(err).toContain("no packages with a settings config");
+  });
+
+  it("inspect --workspace --format=json emits a structured 'no packages' document", async () => {
+    const code = await runCli([
+      "inspect",
+      "--workspace",
+      "--format",
+      "json",
+    ]);
+    expect(code).toBe(2);
+    const json = JSON.parse(capture.stdout.join(""));
+    expect(json.ok).toBe(false);
+    expect(json.packages).toEqual([]);
+    expect(json.error).toContain("no packages");
+  });
+});
+
 describe("CLI e2e — diff", () => {
   it("text mode passes on a complete, correct ConfigMap + Secret", async () => {
     const yamlPath = join(tmp, "live.yaml");

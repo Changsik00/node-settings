@@ -72,7 +72,6 @@ const REQUIRED_ROOT = [
   "inferAppEnvDetailed",
   // Loaders
   "loadNodeEnv",
-  "loadViteEnv",
   "loadDotenvFile",
   "parseDotenv",
   "loadDotenvCascade",
