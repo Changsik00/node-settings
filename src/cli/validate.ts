@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { z } from "zod";
 import { loadDotenvFile } from "../loaders/dotenv-file.js";
 import { NodeSettingsError } from "../errors.js";
+import { zodIssuesOf } from "../utils/zod-issues.js";
 import { loadUserConfig } from "./load-user-config.js";
 import type { ParsedArgs } from "./args.js";
 import { flagString } from "./args.js";
@@ -132,10 +133,7 @@ function serializeError(err: unknown): NonNullable<ValidateResult["error"]> {
     };
     if (err.hint) base.hint = err.hint;
     if (err.cause instanceof z.ZodError) {
-      base.issues = err.cause.errors.map((e) => ({
-        path: e.path.join(".") || "(root)",
-        message: e.message,
-      }));
+      base.issues = zodIssuesOf(err.cause);
     }
     return base;
   }
@@ -143,10 +141,7 @@ function serializeError(err: unknown): NonNullable<ValidateResult["error"]> {
     return {
       code: "ENV_VALIDATION_FAILED",
       message: err.message,
-      issues: err.errors.map((e) => ({
-        path: e.path.join(".") || "(root)",
-        message: e.message,
-      })),
+      issues: zodIssuesOf(err),
     };
   }
   return {

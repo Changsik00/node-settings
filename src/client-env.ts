@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { NodeSettingsError } from "./errors.js";
+import { raise } from "./errors.js";
+import { formatZodIssues } from "./utils/zod-issues.js";
 
 export interface DefineClientEnvOptions<
   TSchema extends z.ZodObject<z.ZodRawShape>,
@@ -75,7 +76,7 @@ export function defineClientEnv<TSchema extends z.ZodObject<z.ZodRawShape>>(
   const strict = options.strict ?? false;
 
   if (typeof prefix !== "string" || prefix.length === 0) {
-    throw new NodeSettingsError(
+    raise(
       "CLIENT_ENV_PREFIX_VIOLATION",
       `defineClientEnv: prefix must be a non-empty string (got ${JSON.stringify(prefix)}).`,
       {
@@ -87,7 +88,7 @@ export function defineClientEnv<TSchema extends z.ZodObject<z.ZodRawShape>>(
   const declared = Object.keys(schema.shape);
   const offenders = declared.filter((k) => !k.startsWith(prefix));
   if (offenders.length > 0) {
-    throw new NodeSettingsError(
+    raise(
       "CLIENT_ENV_PREFIX_VIOLATION",
       `defineClientEnv: schema key(s) do not start with prefix '${prefix}': ${offenders
         .map((k) => `'${k}'`)
@@ -110,7 +111,7 @@ export function defineClientEnv<TSchema extends z.ZodObject<z.ZodRawShape>>(
       const declaredSet = new Set(declared);
       const extras = Object.keys(filtered).filter((k) => !declaredSet.has(k));
       if (extras.length > 0) {
-        throw new NodeSettingsError(
+        raise(
           "CLIENT_ENV_UNDECLARED",
           `Public env key(s) present at runtime but not declared in the client schema: ${extras
             .map((k) => `'${k}'`)
@@ -126,22 +127,11 @@ export function defineClientEnv<TSchema extends z.ZodObject<z.ZodRawShape>>(
       return schema.parse(filtered) as z.infer<TSchema>;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        throw new NodeSettingsError(
-          "CLIENT_ENV_VALIDATION_FAILED",
-          formatZodError(err),
-          { cause: err },
-        );
+        raise("CLIENT_ENV_VALIDATION_FAILED", formatZodIssues(err), {
+          cause: err,
+        });
       }
       throw err;
     }
   };
-}
-
-function formatZodError(err: z.ZodError): string {
-  return err.errors
-    .map((e) => {
-      const path = e.path.join(".") || "(root)";
-      return `  - ${path}: ${e.message}`;
-    })
-    .join("\n");
 }

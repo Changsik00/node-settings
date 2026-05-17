@@ -6,8 +6,12 @@ import {
   type EnvField,
   type IntrospectOptions,
 } from "./introspect.js";
-import { NodeSettingsError } from "./errors.js";
-import { validateDefineSettingsOptions } from "./validate-options.js";
+import { raise } from "./errors.js";
+import { formatZodIssues } from "./utils/zod-issues.js";
+import {
+  validateDefineSettingsOptions,
+  assertSettingsLoaderShape,
+} from "./validate-options.js";
 import { findTodos } from "./todo.js";
 
 /**
@@ -285,12 +289,9 @@ export function defineSettings<
       env = resolvedSchema.parse(rawEnv) as Record<string, unknown>;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        const details = err.errors
-          .map((e) => `  - ${e.path.join(".") || "(root)"}: ${e.message}`)
-          .join("\n");
-        throw new NodeSettingsError(
+        raise(
           "ENV_VALIDATION_FAILED",
-          `env validation failed:\n${details}`,
+          `env validation failed:\n${formatZodIssues(err)}`,
           {
             hint: "Check that every required env var is set and matches the schema.",
             cause: err,
@@ -302,7 +303,7 @@ export function defineSettings<
 
     const envValue = env[resolved.envKey];
     if (typeof envValue !== "string") {
-      throw new NodeSettingsError(
+      raise(
         "INVALID_ENV_KEY_TYPE",
         `env['${resolved.envKey}'] is not a string at runtime (got ${typeof envValue}).`,
         {
@@ -313,7 +314,7 @@ export function defineSettings<
     const envSpecific = resolvedPerEnv[envValue];
     if (!envSpecific) {
       const keys = Object.keys(resolvedPerEnv).join(", ");
-      throw new NodeSettingsError(
+      raise(
         "PER_ENV_BRANCH_MISSING",
         `perEnv has no branch for '${envValue}'. Known branches: ${keys}`,
         {
@@ -355,7 +356,7 @@ export function defineSettings<
       const list = todos
         .map((t) => `  - ${t.path}: ${t.reason}`)
         .join("\n");
-      throw new NodeSettingsError(
+      raise(
         "PER_ENV_TODO",
         `unfilled todo() value(s) for ${resolved.envKey}=${envValue}:\n${list}`,
         {
@@ -400,20 +401,7 @@ export function defineSettings<
 function validateExtendsList(
   extendsList: readonly unknown[],
 ): asserts extendsList is readonly AnySettingsLoader[] {
-  extendsList.forEach((parent, idx) => {
-    if (
-      typeof parent !== "function" ||
-      !("resolved" in (parent as unknown as Record<string, unknown>))
-    ) {
-      throw new NodeSettingsError(
-        "INVALID_EXTENDS_ITEM",
-        `extends[${idx}] is not a valid SettingsLoader.`,
-        {
-          hint: "Every extends[] entry must be the return value of defineSettings(...).",
-        },
-      );
-    }
-  });
+  extendsList.forEach(assertSettingsLoaderShape);
 }
 
 function resolveEnvSchema(
@@ -474,7 +462,7 @@ function parseJsonOverride(
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw new NodeSettingsError(
+    raise(
       "OVERRIDE_JSON_PARSE",
       `override JSON parse failed: ${(err as Error).message}`,
       {

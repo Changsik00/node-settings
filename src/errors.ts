@@ -80,3 +80,25 @@ export class NodeSettingsError extends Error {
     if (options && "cause" in options) this.cause = options.cause;
   }
 }
+
+/**
+ * Throw a {@link NodeSettingsError}. Returns `never` so call sites
+ * don't need an unreachable `throw` and TypeScript can narrow types
+ * after the call.
+ *
+ * @example
+ * ```ts
+ * if (!(key in shape)) {
+ *   raise("MISSING_ENV_KEY", `envKey '${key}' is not defined.`, {
+ *     hint: `Known: ${keys.join(", ")}`,
+ *   });
+ * }
+ * ```
+ */
+export function raise(
+  code: NodeSettingsErrorCode,
+  message: string,
+  options?: { hint?: string; cause?: unknown },
+): never {
+  throw new NodeSettingsError(code, message, options);
+}
