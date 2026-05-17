@@ -133,25 +133,7 @@ function introspectField(
     }
   }
 
-  let type: EnvField["type"] = "unknown";
-  let enumValues: readonly string[] | undefined;
-  const innerDef = inner._def as ZodInnerDef;
-  const innerTypeName = innerDef.typeName;
-  if (innerTypeName === "ZodString") {
-    type = "string";
-  } else if (innerTypeName === "ZodNumber") {
-    type = "number";
-  } else if (innerTypeName === "ZodBoolean") {
-    type = "boolean";
-  } else if (innerTypeName === "ZodEnum") {
-    type = "enum";
-    enumValues = (inner as z.ZodEnum<[string, ...string[]]>).options;
-  } else if (innerTypeName === "ZodNativeEnum" && innerDef.values) {
-    type = "enum";
-    enumValues = Object.values(innerDef.values).filter(
-      (v): v is string => typeof v === "string",
-    );
-  }
+  const { type, enumValues } = primitiveTypeOf(inner);
 
   const tag = parseSecretTag(description);
   const matchedByName = patterns.some((p) => p.test(key));
@@ -169,6 +151,44 @@ function introspectField(
   if (enumValues) field.enumValues = enumValues;
   if (cleanedDescription) field.description = cleanedDescription;
   return field;
+}
+
+interface PrimitiveTypeInfo {
+  type: EnvField["type"];
+  enumValues?: readonly string[];
+}
+
+/**
+ * Map a fully-unwrapped zod schema to its primitive {@link EnvField} type.
+ * Unknown shapes (objects, arrays, unions, ...) collapse to `"unknown"`;
+ * callers can refine downstream.
+ */
+const PRIMITIVE_TYPE_RESOLVERS: Record<
+  string,
+  (inner: z.ZodTypeAny, def: ZodInnerDef) => PrimitiveTypeInfo
+> = {
+  ZodString: () => ({ type: "string" }),
+  ZodNumber: () => ({ type: "number" }),
+  ZodBoolean: () => ({ type: "boolean" }),
+  ZodEnum: (inner) => ({
+    type: "enum",
+    enumValues: (inner as z.ZodEnum<[string, ...string[]]>).options,
+  }),
+  ZodNativeEnum: (_inner, def) => {
+    if (!def.values) return { type: "unknown" };
+    return {
+      type: "enum",
+      enumValues: Object.values(def.values).filter(
+        (v): v is string => typeof v === "string",
+      ),
+    };
+  },
+};
+
+function primitiveTypeOf(inner: z.ZodTypeAny): PrimitiveTypeInfo {
+  const def = inner._def as ZodInnerDef;
+  const resolve = def.typeName ? PRIMITIVE_TYPE_RESOLVERS[def.typeName] : undefined;
+  return resolve ? resolve(inner, def) : { type: "unknown" };
 }
 
 function parseSecretTag(
