@@ -1,76 +1,154 @@
 /**
- * Stable error codes thrown by `@env-kit/node-settings`. Use these
- * for programmatic handling rather than matching on `message`, which
- * may evolve across minor versions.
+ * Catalog of every error this package can raise, with severity bucket,
+ * human-readable title, and the anchor in `docs/ERRORS.md` that
+ * documents it in long form.
+ *
+ * This is the **single source of truth** for error codes:
+ *
+ *   - {@link NodeSettingsErrorCode} is derived from its keys.
+ *   - {@link NodeSettingsError.severity} and `.docsUrl` read from it
+ *     at runtime.
+ *   - `docs/ERRORS.md` is regenerated from it by
+ *     `scripts/generate-errors-doc.mjs`.
+ *   - `scripts/verify-errors.mjs` (part of `pnpm verify`) enforces
+ *     that every entry has an actual `raise(...)` call somewhere in
+ *     `src/` and a matching `<a id="...">` in the doc.
+ *
+ * Adding an error code: add an entry here and one `raise(...)` call
+ * site — the rest follows.
  */
-export type NodeSettingsErrorCode =
-  /** `envSchema` is not a `z.object({...})`. */
-  | "INVALID_ENV_SCHEMA"
-  /** `envKey` does not exist in the (merged) envSchema. */
-  | "MISSING_ENV_KEY"
-  /** `envKey` exists but does not resolve to a string / enum field. */
-  | "INVALID_ENV_KEY_TYPE"
-  /** `overrideEnvKey` does not exist in the (merged) envSchema. */
-  | "INVALID_OVERRIDE_KEY"
-  /** A `perEnv` branch key is not one of the `envKey` enum's values. */
-  | "PER_ENV_KEY_NOT_IN_ENUM"
-  /** `perEnv` has no branches at all. */
-  | "PER_ENV_EMPTY"
-  /** At runtime, the resolved `envKey` value has no matching `perEnv` branch. */
-  | "PER_ENV_BRANCH_MISSING"
-  /** The loaded perEnv branch still contains unfilled `todo(...)` sentinels. */
-  | "PER_ENV_TODO"
-  /** An item in `extends` is not a `defineSettings(...)` loader. */
-  | "INVALID_EXTENDS_ITEM"
-  /** The `overrideEnvKey` env var is not parseable JSON. */
-  | "OVERRIDE_JSON_PARSE"
-  /** Zod env validation failed at runtime. */
-  | "ENV_VALIDATION_FAILED"
-  /**
-   * `defineClientEnv` was given a schema key that does not start with the
-   * declared `prefix`. The whole point of the helper is to keep
-   * server-only secrets out of the client bundle, so this is fatal —
-   * either rename the key, or move it to the server-side `defineSettings()`.
-   */
-  | "CLIENT_ENV_PREFIX_VIOLATION"
-  /**
-   * `strict: true` was set on `defineClientEnv` and the runtime source
-   * contained a key starting with `prefix` that is NOT declared in the
-   * client schema. Catches typos and forgotten-to-declare drift.
-   */
-  | "CLIENT_ENV_UNDECLARED"
-  /** Zod validation of the client-side env failed. */
-  | "CLIENT_ENV_VALIDATION_FAILED"
-  /**
-   * The CLI walked up from `cwd` and could not find a
-   * `node-settings.config.*` or `settings.config.*` file before hitting
-   * a workspace marker (`.git`, `pnpm-workspace.yaml`, …) or the
-   * filesystem root.
-   */
-  | "CONFIG_NOT_FOUND"
-  /**
-   * The config file was found but failed to load — typically a syntax
-   * error in the user's TS/JS source, or a missing dependency it tried
-   * to import. The original error is attached as `cause`.
-   */
-  | "CONFIG_LOAD_FAILED"
-  /**
-   * The config module loaded successfully but did not export a value
-   * created by `defineSettings(...)`. We accept either a `default`
-   * export or a named `settings` export.
-   */
-  | "CONFIG_INVALID_EXPORT"
-  /**
-   * A file the package needed to read (dotenv file, K8s manifest, etc.)
-   * failed at the filesystem level — permission denied, broken symlink,
-   * unreadable encoding, etc. The original fs error is attached as `cause`.
-   */
-  | "FILE_READ_FAILED"
-  /**
-   * The YAML blob passed to `diff` could not be parsed. The CLI surfaces
-   * this as exit code 2 (caller-supplied input is malformed).
-   */
-  | "K8S_YAML_PARSE_FAILED";
+export const ERROR_CATALOG = {
+  // -------- config: developer misconfigured defineSettings/defineClientEnv
+  INVALID_ENV_SCHEMA: {
+    severity: "config",
+    title: "envSchema is not a z.object",
+    docsAnchor: "invalid_env_schema",
+  },
+  MISSING_ENV_KEY: {
+    severity: "config",
+    title: "envKey not found in envSchema",
+    docsAnchor: "missing_env_key",
+  },
+  INVALID_ENV_KEY_TYPE: {
+    severity: "config",
+    title: "envKey is not a string / enum",
+    docsAnchor: "invalid_env_key_type",
+  },
+  INVALID_OVERRIDE_KEY: {
+    severity: "config",
+    title: "overrideEnvKey not found in envSchema",
+    docsAnchor: "invalid_override_key",
+  },
+  PER_ENV_EMPTY: {
+    severity: "config",
+    title: "perEnv has no branches",
+    docsAnchor: "per_env_empty",
+  },
+  PER_ENV_KEY_NOT_IN_ENUM: {
+    severity: "config",
+    title: "perEnv branch not in envKey enum",
+    docsAnchor: "per_env_key_not_in_enum",
+  },
+  CLIENT_ENV_PREFIX_VIOLATION: {
+    severity: "config",
+    title: "defineClientEnv schema key missing required prefix",
+    docsAnchor: "client_env_prefix_violation",
+  },
+
+  // -------- runtime: bad env at boot (operator / CI surface)
+  ENV_VALIDATION_FAILED: {
+    severity: "runtime",
+    title: "Zod env validation failed",
+    docsAnchor: "env_validation_failed",
+  },
+  PER_ENV_BRANCH_MISSING: {
+    severity: "runtime",
+    title: "No perEnv branch matches the runtime envKey value",
+    docsAnchor: "per_env_branch_missing",
+  },
+  PER_ENV_TODO: {
+    severity: "runtime",
+    title: "Loaded perEnv branch still has unfilled todo() sentinels",
+    docsAnchor: "per_env_todo",
+  },
+  OVERRIDE_JSON_PARSE: {
+    severity: "runtime",
+    title: "Override env var is not valid JSON",
+    docsAnchor: "override_json_parse",
+  },
+  CLIENT_ENV_UNDECLARED: {
+    severity: "runtime",
+    title: "Prefixed key present at runtime but not declared in the client schema",
+    docsAnchor: "client_env_undeclared",
+  },
+  CLIENT_ENV_VALIDATION_FAILED: {
+    severity: "runtime",
+    title: "Zod validation of the client-side env failed",
+    docsAnchor: "client_env_validation_failed",
+  },
+
+  // -------- io: filesystem / parse failures from CLI and loaders
+  CONFIG_NOT_FOUND: {
+    severity: "io",
+    title: "Settings config file not found",
+    docsAnchor: "config_not_found",
+  },
+  CONFIG_LOAD_FAILED: {
+    severity: "io",
+    title: "Settings config file failed to load",
+    docsAnchor: "config_load_failed",
+  },
+  CONFIG_INVALID_EXPORT: {
+    severity: "io",
+    title: "Settings config did not export a defineSettings(...) loader",
+    docsAnchor: "config_invalid_export",
+  },
+  FILE_READ_FAILED: {
+    severity: "io",
+    title: "Could not read a dotenv file or K8s manifest",
+    docsAnchor: "file_read_failed",
+  },
+  K8S_YAML_PARSE_FAILED: {
+    severity: "io",
+    title: "YAML input to `diff` did not parse",
+    docsAnchor: "k8s_yaml_parse_failed",
+  },
+
+  // -------- usage: caller used the API incorrectly
+  INVALID_EXTENDS_ITEM: {
+    severity: "usage",
+    title: "extends[i] is not a defineSettings(...) loader",
+    docsAnchor: "invalid_extends_item",
+  },
+} as const;
+
+/**
+ * Stable error codes thrown by `@env-kit/node-settings`. Match on
+ * `.code`, not `.message` — messages may evolve across minor versions.
+ *
+ * The union is derived from {@link ERROR_CATALOG}, so adding a code
+ * there extends this type automatically.
+ */
+export type NodeSettingsErrorCode = keyof typeof ERROR_CATALOG;
+
+/**
+ * Buckets that classify *who* is responsible for fixing the error and
+ * *when* it surfaces. Consumers wire these to alarms / log levels:
+ *
+ *   - `config`   misconfiguration in `defineSettings(...)` source —
+ *                CI / build alarm; the developer must fix the code.
+ *   - `runtime`  bad env values at boot — on-call alarm; the
+ *                operator fixes the deploy environment.
+ *   - `io`       file system / parse failures from CLI or loaders —
+ *                operator or CI alarm depending on context.
+ *   - `usage`    the caller used the public API incorrectly (rare; a
+ *                code-review-time bug).
+ */
+export type ErrorSeverity = "config" | "runtime" | "io" | "usage";
+
+/** Default base URL for `err.docsUrl`. Overridable via `reportError(err, { docsBase })`. */
+export const DEFAULT_DOCS_BASE =
+  "https://github.com/Changsik00/node-settings/blob/main/docs/ERRORS.md";
 
 /**
  * Single error class for every problem this package can raise. Carries
@@ -108,6 +186,21 @@ export class NodeSettingsError extends Error {
     this.code = code;
     this.hint = options?.hint;
     if (options && "cause" in options) this.cause = options.cause;
+  }
+
+  /** Severity bucket from {@link ERROR_CATALOG}. */
+  get severity(): ErrorSeverity {
+    return ERROR_CATALOG[this.code].severity;
+  }
+
+  /** Short human title for dashboards and log subjects. */
+  get title(): string {
+    return ERROR_CATALOG[this.code].title;
+  }
+
+  /** Direct link to the long-form doc entry for this code. */
+  get docsUrl(): string {
+    return `${DEFAULT_DOCS_BASE}#${ERROR_CATALOG[this.code].docsAnchor}`;
   }
 }
 

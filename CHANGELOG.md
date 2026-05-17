@@ -10,6 +10,43 @@ under `[Unreleased]` and are promoted to a versioned section when
 
 ### Added
 
+- **`ERROR_CATALOG`** — single source of truth for every error this
+  package can raise. Each entry carries a `severity` bucket
+  (`config | runtime | io | usage`), a short `title`, and a
+  `docsAnchor`. `NodeSettingsErrorCode` is now derived from the
+  catalog's keys, so adding an entry extends the union automatically.
+- **`NodeSettingsError.severity`, `.title`, `.docsUrl`** getters —
+  read from the catalog at runtime. Lets consumers route to the right
+  alarm channel (`err.severity === "runtime"` → on-call) without
+  hard-coding code lists.
+- **`reportError(err, { docsBase? })`** — public helper that distils
+  any throw (`NodeSettingsError`, `ZodError`, plain `Error`) into a
+  JSON-serialisable `ErrorReport` with `code`, `severity`, `title`,
+  `message`, `hint?`, `docsUrl`, `issues[]?`, `cause?`. The CLI's
+  `--format=json` mode uses it directly; library consumers can ship
+  the same shape to log aggregators and Sentry.
+- **`scripts/verify-errors.mjs`** in the `pnpm verify` chain — fails
+  if any catalog entry has no `raise(...)` call site (dead code),
+  any anchor is missing from `docs/ERRORS.md`, or the auto-generated
+  catalog section is out of date.
+- **`scripts/generate-errors-doc.mjs`** (`pnpm gen:errors-doc`) —
+  regenerates the catalog section of `docs/ERRORS.md` between
+  `<!-- BEGIN AUTO-GENERATED:CATALOG -->` markers.
+
+### Changed
+
+- **`cli/validate.ts:serializeError`** removed; the subcommand now
+  calls `reportError(err)` directly. The `--format=json` output now
+  includes `severity`, `title`, `docsUrl`, and `cause` fields in
+  addition to the previous `code` / `message` / `hint` / `issues`.
+  This is a JSON shape extension, not a removal.
+- **`docs/ERRORS.md`** restructured: hand-written intro + auto-managed
+  catalog section grouped by severity. Was four hand-edited tables
+  that could drift from `src/errors.ts`; now the source of truth is
+  the catalog and the doc is regenerated from it.
+
+### Added
+
 - **`docs/ARCHITECTURE.md`** — contributor-facing reference covering
   the layering rules, file/directory naming conventions, ESM
   resolution discipline, and the core code patterns (factory +

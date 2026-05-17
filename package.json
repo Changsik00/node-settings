@@ -82,8 +82,10 @@
     "verify:sample": "node scripts/verify-sample.mjs",
     "verify:api": "node scripts/verify-api.mjs",
     "verify:docs": "node scripts/verify-docs.mjs",
+    "verify:errors": "node scripts/verify-errors.mjs",
+    "gen:errors-doc": "node scripts/generate-errors-doc.mjs",
     "mutation": "stryker run",
-    "verify": "pnpm run typecheck && pnpm run test:coverage && pnpm run build && pnpm run verify:dist && pnpm run verify:sample && pnpm run verify:api && pnpm run verify:docs && pnpm run verify:pack",
+    "verify": "pnpm run typecheck && pnpm run test:coverage && pnpm run build && pnpm run verify:dist && pnpm run verify:sample && pnpm run verify:api && pnpm run verify:docs && pnpm run verify:errors && pnpm run verify:pack",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run verify:dist && pnpm run verify:api && pnpm run verify:pack"
   },

@@ -1,8 +1,7 @@
 import { existsSync } from "node:fs";
-import { z } from "zod";
 import { loadDotenvFile } from "../loaders/dotenv-file.js";
 import { NodeSettingsError } from "../errors.js";
-import { zodIssuesOf } from "../utils/zod-issues.js";
+import { reportError, type ErrorReport } from "../report-error.js";
 import { loadUserConfig } from "./load-user-config.js";
 import type { ParsedArgs } from "./args.js";
 import { flagString } from "./args.js";
@@ -12,14 +11,8 @@ export interface ValidateResult {
   ok: boolean;
   config: string;
   source: string;
-  /** Present only on failure. */
-  error?: {
-    code: string;
-    message: string;
-    hint?: string;
-    /** When wrapped from zod, includes the path-by-path issues. */
-    issues?: Array<{ path: string; message: string }>;
-  };
+  /** Structured error report — present only on failure. See {@link ErrorReport}. */
+  error?: ErrorReport;
 }
 
 /**
@@ -77,10 +70,15 @@ export async function buildValidateResult(
             ok: false,
             config: resolvedConfig,
             source: envFileArg,
-            error: {
-              code: "ENV_FILE_NOT_FOUND",
-              message: `env file not found: ${envFileArg}`,
-            },
+            error: reportError(
+              new NodeSettingsError(
+                "FILE_READ_FAILED",
+                `env file not found: ${envFileArg}.`,
+                {
+                  hint: "Pass an existing path to --env-file, or omit the flag to use process.env.",
+                },
+              ),
+            ),
           },
         };
       }
@@ -99,7 +97,7 @@ export async function buildValidateResult(
         ok: false,
         config: resolvedConfig,
         source,
-        error: serializeError(err),
+        error: reportError(err),
       };
     }
   } catch (err) {
@@ -107,7 +105,7 @@ export async function buildValidateResult(
       ok: false,
       config: configPath ?? "(auto-discover)",
       source: envFileArg ?? "process.env",
-      error: serializeError(err),
+      error: reportError(err),
     };
   }
 
@@ -125,27 +123,3 @@ export function printValidateResultText(result: ValidateResult): void {
   }
 }
 
-function serializeError(err: unknown): NonNullable<ValidateResult["error"]> {
-  if (err instanceof NodeSettingsError) {
-    const base: NonNullable<ValidateResult["error"]> = {
-      code: err.code,
-      message: err.message,
-    };
-    if (err.hint) base.hint = err.hint;
-    if (err.cause instanceof z.ZodError) {
-      base.issues = zodIssuesOf(err.cause);
-    }
-    return base;
-  }
-  if (err instanceof z.ZodError) {
-    return {
-      code: "ENV_VALIDATION_FAILED",
-      message: err.message,
-      issues: zodIssuesOf(err),
-    };
-  }
-  return {
-    code: "UNKNOWN",
-    message: err instanceof Error ? err.message : String(err),
-  };
-}

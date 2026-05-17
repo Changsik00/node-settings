@@ -32,8 +32,17 @@ export {
 
 export {
   NodeSettingsError,
+  ERROR_CATALOG,
+  DEFAULT_DOCS_BASE,
   type NodeSettingsErrorCode,
+  type ErrorSeverity,
 } from "./errors.js";
+
+export {
+  reportError,
+  type ErrorReport,
+  type ReportErrorOptions,
+} from "./report-error.js";
 
 export {
   todo,

@@ -20,7 +20,8 @@
  */
 export { defineSettings, type DefineSettingsOptions, type SettingsLoader, type AnySettingsLoader, type ResolvedSettings, type MergedEnv, type MergedConfig, } from "./define-settings.js";
 export { defineClientEnv, type DefineClientEnvOptions, } from "./client-env.js";
-export { NodeSettingsError, type NodeSettingsErrorCode, } from "./errors.js";
+export { NodeSettingsError, ERROR_CATALOG, DEFAULT_DOCS_BASE, type NodeSettingsErrorCode, type ErrorSeverity, } from "./errors.js";
+export { reportError, type ErrorReport, type ReportErrorOptions, } from "./report-error.js";
 export { todo, isTodo, findTodos, TODO_SYMBOL, type TodoSentinel, } from "./todo.js";
 export { presets, inferAppEnv, inferAppEnvDetailed, type AppEnvPreset, type InferAppEnvOptions, type InferAppEnvResult, type VercelMapping, type NetlifyMapping, type GithubActionsOptions, type CloudflarePagesOptions, type RailwayMapping, type NodeEnvMapping, } from "./presets.js";
 export { introspectEnvSchema, type EnvField, type IntrospectOptions, DEFAULT_SECRET_PATTERNS, } from "./introspect.js";
