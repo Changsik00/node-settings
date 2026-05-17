@@ -235,25 +235,70 @@ plugins' option shape: `{ config?, mode?, envDir?, appEnvKey?, failOnDev? }`.
 
 ## Testing strategy
 
-| Layer            | File                                  | Purpose                                          |
-| ---------------- | ------------------------------------- | ------------------------------------------------ |
-| Unit             | `src/**/<name>.test.ts`               | One module, isolated. Most coverage lives here.  |
-| Type-level       | `src/types.test.ts`                   | `expectTypeOf` assertions for inferred types.    |
-| CLI end-to-end   | `src/cli/cli-e2e.test.ts`             | `runCli(['validate', ...])` returns expected exit code. |
-| Generator snapshots | `src/generators/snapshots.test.ts` + `__snapshots__/` | Output diffs visible in review. |
-| Mutation         | `pnpm mutation` (Stryker, nightly)    | Surfaces tests that pass without the mutated code mattering. |
+Tests are organised into four categories (industry-standard taxonomy:
+unit / contract / integration / e2e) plus the verify chain that
+guards build-time and packaging invariants. Each category answers a
+different question, so the dev loop and CI run them with different
+trade-offs.
 
-Conventions:
+### Categories
 
-- One `describe` block per public function. Nested describes for
-  sub-cases.
-- Test **observable behaviour**, not implementation. If a test breaks
-  on a refactor that didn't change behaviour, the test was wrong.
-- For error paths: assert on `err.code`, never on `err.message`
-  (messages may evolve; codes are part of the API contract).
-- For generator changes: regenerate snapshots only when the output
-  diff is intentional. Each diff lands in a single commit so the
-  before/after is reviewable.
+| Category    | What it answers                                   | Files                                                                          | Count | Speed     | `pnpm` script   |
+| ----------- | ------------------------------------------------- | ------------------------------------------------------------------------------ | ----- | --------- | --------------- |
+| Unit        | Does this single function behave?                 | `src/**/<name>.test.ts` (excl. categories below)                                | ~213  | very fast | `test:unit`     |
+| Contract    | Are public types / API surface still as promised? | `src/types.test.ts` (`expectTypeOf`), plus `verify:api`/`verify:dist`/`verify:errors` | 17 + 3 scripts | fast | `test:contract` + `verify:*` |
+| Integration | Do we play correctly with third-party libraries?  | `src/vite/vite.test.ts`, `src/next/next.test.ts`, `src/esbuild/esbuild.test.ts` | ~27   | medium    | `test:integ`    |
+| E2E         | Does the user-facing CLI flow work?               | `src/cli/cli-e2e.test.ts`, plus `verify:sample`                                | 37 + 1 script  | slow | `test:e2e`      |
+
+`pnpm test` keeps the existing behaviour and runs **everything**
+through vitest in one pass. The category-specific scripts share the
+same `vitest.config.ts` — they just filter by path. Coverage
+thresholds apply to the full run only.
+
+Special-purpose runs:
+
+| Script           | What it adds                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------------- |
+| `test:coverage`  | Full run + istanbul coverage. Floors: stmts 80, fns 85, branches 80, lines 80.                      |
+| `mutation`       | Stryker nightly. Surfaces tests that pass even when the mutated code doesn't matter. Excludes CLI.  |
+| `verify`         | The full chain: typecheck → coverage → build → verify:dist/sample/api/docs/errors/pack. CI's gate.  |
+
+### How to know which category a new test belongs in
+
+```
+Is the test invoking the public CLI binary or one of `runCli(['<sub>', …])`?
+  → e2e
+
+Does it construct a real Vite / Next / esbuild instance and drive its
+lifecycle?
+  → integ
+
+Does it assert on the *type* (compile-time shape) of an export, or on
+the public API surface?
+  → contract
+
+Otherwise:
+  → unit
+```
+
+### Conventions
+
+- **One `describe` per public function**, with nested `describe`s for
+  sub-cases. Test names start with "returns" / "throws" / "fails when".
+- **Test observable behaviour, not implementation.** A refactor that
+  doesn't change behaviour should never break a test.
+- **Error-path tests assert on `err.code`, never on `err.message`.**
+  Codes are part of the public contract (see `ERROR_CATALOG`);
+  messages may evolve in minor versions.
+- **Snapshots only for generator output**
+  (`src/generators/__snapshots__/`). Everything else uses explicit
+  `expect` assertions so reviewers see what's being checked.
+- **Tests live next to source** as `<name>.test.ts`. Don't introduce
+  a top-level `tests/` directory — the colocation keeps a feature's
+  code and its tests in the same diff.
+- **Unit tests must not touch the network or wall clock.** Filesystem
+  is allowed under `mkdtempSync(os.tmpdir())`. Integration / e2e tests
+  may use any of these but must clean up in `afterEach`.
 
 ## Adding a new feature: the checklist
 

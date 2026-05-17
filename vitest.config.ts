@@ -21,10 +21,7 @@ export default defineConfig({
         "src/cli/bin.ts",
         // Re-export-only index files have no executable code
         "src/loaders/index.ts",
-        "src/utils/index.ts",
         "src/generators/index.ts",
-        // Placeholder for future frontend support
-        "src/loaders/vite-env.ts",
       ],
       thresholds: {
         // Floors set slightly below current measured coverage so a

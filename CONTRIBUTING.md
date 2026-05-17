@@ -46,17 +46,31 @@ pnpm typecheck          # tsc --noEmit
 pnpm test -- --update   # update vitest snapshots after intentional changes
 ```
 
-For a focused test file:
+### Test categories
+
+Tests are split into four categories. Pick the smallest one that
+covers what you changed:
+
+| Script              | Runs                                                      | Speed   |
+| ------------------- | --------------------------------------------------------- | ------- |
+| `pnpm test:unit`    | Single-module unit tests (most of `src/`)                 | ~1s     |
+| `pnpm test:contract`| Type-level assertions (`src/types.test.ts`)               | <1s     |
+| `pnpm test:integ`   | Real Vite / Next / esbuild plugin lifecycle               | ~2s     |
+| `pnpm test:e2e`     | CLI invocation (`runCli([...])`) end-to-end               | ~5s     |
+| `pnpm test`         | All four in one pass                                      | ~6s     |
+| `pnpm test:coverage`| Everything + istanbul coverage report                     | ~7s     |
+
+The verify chain (`pnpm verify`) wraps these and adds the build-time
+contract checks: `verify:dist`, `verify:api`, `verify:errors`,
+`verify:sample`, `verify:docs`, `verify:pack`. See
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md#testing-strategy)
+for the full taxonomy and how to decide which category a new test
+belongs in.
+
+For a single focused file:
 
 ```bash
 pnpm vitest run src/cli/cli-e2e.test.ts
-```
-
-For coverage:
-
-```bash
-pnpm test:coverage
-# HTML report: open coverage/index.html
 ```
 
 ## Verify chain
