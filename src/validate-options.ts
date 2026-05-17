@@ -93,7 +93,7 @@ export function validateDefineSettingsOptions(
     raise(
       "MISSING_ENV_KEY",
       `envKey '${input.envKey}' is not defined in the envSchema.`,
-      { hint: `Known keys: ${knownKeys.join(", ") || "(none)"}` },
+      { hint: `Known keys: ${knownKeys.join(", ") || "(none)"}.` },
     );
   }
 
@@ -147,7 +147,7 @@ export function validateDefineSettingsOptions(
     raise(
       "INVALID_OVERRIDE_KEY",
       `overrideEnvKey '${input.overrideEnvKey}' is not defined in the envSchema.`,
-      { hint: `Known keys: ${knownKeys.join(", ") || "(none)"}` },
+      { hint: `Known keys: ${knownKeys.join(", ") || "(none)"}.` },
     );
   }
 

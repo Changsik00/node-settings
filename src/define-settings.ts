@@ -314,7 +314,7 @@ export function defineSettings<
       const keys = Object.keys(resolvedPerEnv).join(", ");
       raise(
         "PER_ENV_BRANCH_MISSING",
-        `perEnv has no branch for '${envValue}'. Known branches: ${keys}`,
+        `perEnv has no branch for '${envValue}'. Known branches: ${keys}.`,
         {
           hint: `Add perEnv['${envValue}'] = {...} or fix the value of env['${resolved.envKey}'].`,
         },

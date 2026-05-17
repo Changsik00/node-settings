@@ -116,7 +116,7 @@ async function readSource(source: string | undefined): Promise<string | null> {
     return await readStdin();
   }
   if (!existsSync(source)) {
-    raise("FILE_READ_FAILED", `yaml input not found: ${source}.`, {
+    raise("FILE_READ_FAILED", `YAML input not found: ${source}.`, {
       hint: "Pass a readable file path, or pipe a manifest into stdin and use `-` as the argument.",
     });
   }
@@ -126,7 +126,7 @@ async function readSource(source: string | undefined): Promise<string | null> {
     if (err instanceof NodeSettingsError) throw err;
     raise(
       "FILE_READ_FAILED",
-      `failed to read yaml input ${source}: ${err instanceof Error ? err.message : String(err)}`,
+      `failed to read YAML input ${source}: ${err instanceof Error ? err.message : String(err)}`,
       { hint: "Check the file's read permissions.", cause: err },
     );
   }
