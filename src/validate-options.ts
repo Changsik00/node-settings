@@ -76,7 +76,6 @@ interface ValidatedOptionsInput {
 export function validateDefineSettingsOptions(
   input: ValidatedOptionsInput,
 ): void {
-  // 1. envSchema must be a ZodObject (so introspection + .merge work)
   const ownTypeName = (input.ownEnvSchema._def as ZodDefSnapshot).typeName;
   if (ownTypeName !== "ZodObject") {
     raise(
@@ -88,7 +87,6 @@ export function validateDefineSettingsOptions(
     );
   }
 
-  // 2. envKey must exist in the merged schema
   const shape = input.resolvedEnvSchema.shape;
   const knownKeys = Object.keys(shape);
   if (!(input.envKey in shape)) {
@@ -99,7 +97,6 @@ export function validateDefineSettingsOptions(
     );
   }
 
-  // 3. envKey must resolve to a string-like type (string / enum)
   const envKeyField = shape[input.envKey] as z.ZodTypeAny;
   const { typeName: envKeyType, inner: envKeyInner } = unwrapWrappers(envKeyField);
   if (
@@ -116,7 +113,6 @@ export function validateDefineSettingsOptions(
     );
   }
 
-  // 4. perEnv basic sanity
   const branchKeys = Object.keys(input.resolvedPerEnv);
   if (branchKeys.length === 0) {
     raise(
@@ -128,10 +124,9 @@ export function validateDefineSettingsOptions(
     );
   }
 
-  // 5. If envKey is an enum, perEnv keys must be a *subset* of its values.
-  //    We deliberately don't require *every* enum value to have a branch —
-  //    the runtime guard handles missing branches, and `node-settings check`
-  //    is the right place to enforce completeness.
+  // perEnv keys must be a subset of the enum values, not the full set:
+  // missing branches are caught at runtime, and `node-settings check`
+  // is the dedicated place to enforce completeness.
   const allowedEnumValues = enumValuesOf(envKeyType, envKeyInner);
   if (allowedEnumValues) {
     for (const key of branchKeys) {
@@ -148,7 +143,6 @@ export function validateDefineSettingsOptions(
     }
   }
 
-  // 6. overrideEnvKey if present must exist in merged schema
   if (input.overrideEnvKey !== undefined && !(input.overrideEnvKey in shape)) {
     raise(
       "INVALID_OVERRIDE_KEY",
@@ -157,10 +151,9 @@ export function validateDefineSettingsOptions(
     );
   }
 
-  // 7. extends must be an array of valid SettingsLoader values. The
-  //    runtime merging in defineSettings already accesses `.resolved`,
-  //    so eager validation here produces a clearer error than the
-  //    "Cannot read 'resolved'" we'd otherwise get.
+  // Eager extends validation: defineSettings's merge step reaches into
+  // `.resolved`, so catching bad inputs here produces a clearer error
+  // than the "Cannot read 'resolved'" we'd otherwise get.
   input.extendsList.forEach(assertSettingsLoaderShape);
 }
 

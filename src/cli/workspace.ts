@@ -202,7 +202,7 @@ function heuristicScan(root: string): string[] {
       try {
         if (statSync(pkgDir).isDirectory()) dirs.push(pkgDir);
       } catch {
-        // skip
+        /* unreadable entry — silently ignore */
       }
     }
   }

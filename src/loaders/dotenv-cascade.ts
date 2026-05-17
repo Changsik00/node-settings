@@ -93,8 +93,8 @@ export function loadDotenvCascade(
   const loaded: string[] = [];
   const skipped: string[] = [];
 
-  // 1. Load `.env` first so we can read appEnvKey from it (in case
-  //    process.env doesn't have it yet — e.g. in tooling scripts).
+  // Load `.env` first so appEnvKey can come from it when `source`
+  // doesn't have it (e.g. tooling scripts that run before any export).
   const basePath = resolve(cwd, ".env");
   let baseParsed: Record<string, string> = {};
   if (existsSync(basePath)) {
@@ -105,7 +105,6 @@ export function loadDotenvCascade(
     skipped.push(basePath);
   }
 
-  // 2. Determine mode. Priority: source -> .env file -> presets -> default.
   let mode = source[appEnvKey] ?? baseParsed[appEnvKey];
   if (!mode && options.appEnvPresets) {
     for (const preset of options.appEnvPresets) {
@@ -119,8 +118,8 @@ export function loadDotenvCascade(
   if (!mode) mode = defaultMode;
   const skipLocal = skipLocalFor.includes(mode);
 
-  // 3. Remaining cascade. `load: false` entries are still reported in
-  //    `skipped` so callers can see "we deliberately ignored this".
+  // `load: false` entries still land in `skipped` so callers can see
+  // "we deliberately ignored this", not just "we never looked".
   const cascade: Array<{ path: string; load: boolean }> = [
     { path: resolve(cwd, ".env.local"), load: !skipLocal },
     { path: resolve(cwd, `.env.${mode}`), load: true },
@@ -141,11 +140,11 @@ export function loadDotenvCascade(
     }
   }
 
-  // 4. Source (process.env) wins over every file.
   for (const [key, value] of Object.entries(source)) {
     if (value !== undefined) merged[key] = value;
   }
-  // Also make sure appEnvKey lands in the result even if source didn't have it.
+  // Ensure appEnvKey is in the result even when neither files nor source
+  // supplied it — callers downstream rely on env[appEnvKey] being set.
   if (merged[appEnvKey] === undefined) merged[appEnvKey] = mode;
 
   return { env: merged, mode, loaded, skipped };

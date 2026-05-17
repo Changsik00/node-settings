@@ -85,10 +85,6 @@ export function inferAppEnvDetailed(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Platform presets
-// ---------------------------------------------------------------------------
-
 export interface VercelMapping {
   production?: string;
   preview?: string;

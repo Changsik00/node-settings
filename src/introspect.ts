@@ -101,8 +101,6 @@ function introspectField(
   let inner: z.ZodTypeAny = schema;
   let description: string | undefined = inner.description;
 
-  // Walk wrapper layers (optional / default / nullable / effects)
-  // until we hit the underlying primitive.
   // eslint-disable-next-line no-constant-condition
   while (true) {
     if (description === undefined) description = inner.description;

@@ -255,8 +255,6 @@ export function defineSettings<
   const resolvedOverrideEnvKey =
     opts.overrideEnvKey ?? findInheritedOverrideEnvKey(extendsList);
 
-  // Now validate the merged shape. Throws NodeSettingsError on the
-  // first problem so the misconfiguration is caught at define time.
   validateDefineSettingsOptions({
     ownEnvSchema: opts.envSchema,
     resolvedEnvSchema: resolvedSchema,

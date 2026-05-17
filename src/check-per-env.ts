@@ -261,7 +261,6 @@ function lintSecretKeys(
   issues: PerEnvIssue[],
 ): void {
   if (value === null || typeof value !== "object" || isTodo(value)) {
-    // Leaf — test the leaf path against secret patterns.
     if (path && patterns.some((p) => p.test(path))) {
       issues.push({
         env,

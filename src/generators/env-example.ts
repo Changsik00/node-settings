@@ -67,7 +67,6 @@ export function generateEnvExample(
     lines.push("");
   }
 
-  // Trim trailing blank line, then re-add one final newline.
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join(eol) + eol;
 }
