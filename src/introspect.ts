@@ -84,8 +84,9 @@ export function introspectEnvSchema(
 }
 
 interface ZodInnerDef {
-  typeName?: string;
-  defaultValue?: () => unknown;
+  type?: string;
+  // zod 3 stored defaults as `() => unknown`; zod 4 stores them as direct values.
+  defaultValue?: unknown | (() => unknown);
   values?: Record<string, string | number>;
   schema?: z.ZodTypeAny;
   in?: z.ZodTypeAny;
@@ -105,24 +106,25 @@ function introspectField(
   while (true) {
     if (description === undefined) description = inner.description;
     const def = inner._def as ZodInnerDef;
-    const typeName = def.typeName;
-    if (typeName === "ZodOptional") {
+    const typeName = def.type;
+    if (typeName === "optional") {
       required = false;
       inner = (inner as z.ZodOptional<z.ZodTypeAny>).unwrap();
-    } else if (typeName === "ZodDefault") {
+    } else if (typeName === "default") {
       required = false;
+      // zod 4 stores direct value; zod 3 stored a factory function. Support both.
       if (typeof def.defaultValue === "function") {
-        defaultValue = def.defaultValue();
+        defaultValue = (def.defaultValue as () => unknown)();
+      } else if (def.defaultValue !== undefined) {
+        defaultValue = def.defaultValue;
       }
       inner = (inner as z.ZodDefault<z.ZodTypeAny>).removeDefault();
-    } else if (typeName === "ZodNullable") {
+    } else if (typeName === "nullable") {
       required = false;
       inner = (inner as z.ZodNullable<z.ZodTypeAny>).unwrap();
-    } else if (typeName === "ZodEffects") {
-      const sourceType = def.schema;
-      if (sourceType) inner = sourceType;
-      else break;
-    } else if (typeName === "ZodPipeline") {
+    } else if (typeName === "pipe") {
+      // zod 4: transform() and pipe() both produce ZodPipe with `in` / `out`.
+      // Follow the input side to expose the upstream schema.
       const sourceType = def.in;
       if (sourceType) inner = sourceType;
       else break;
@@ -161,31 +163,31 @@ interface PrimitiveTypeInfo {
  * Unknown shapes (objects, arrays, unions, ...) collapse to `"unknown"`;
  * callers can refine downstream.
  */
+// zod 4: lower-case `_def.type` discriminator (was `_def.typeName` in zod 3).
+// ZodEnum and ZodNativeEnum are unified under "enum" — both expose `.options`
+// (zod 4 normalizes native enums into the same option list).
 const PRIMITIVE_TYPE_RESOLVERS: Record<
   string,
   (inner: z.ZodTypeAny, def: ZodInnerDef) => PrimitiveTypeInfo
 > = {
-  ZodString: () => ({ type: "string" }),
-  ZodNumber: () => ({ type: "number" }),
-  ZodBoolean: () => ({ type: "boolean" }),
-  ZodEnum: (inner) => ({
-    type: "enum",
-    enumValues: (inner as z.ZodEnum<[string, ...string[]]>).options,
-  }),
-  ZodNativeEnum: (_inner, def) => {
-    if (!def.values) return { type: "unknown" };
-    return {
-      type: "enum",
-      enumValues: Object.values(def.values).filter(
-        (v): v is string => typeof v === "string",
-      ),
-    };
+  string: () => ({ type: "string" }),
+  number: () => ({ type: "number" }),
+  boolean: () => ({ type: "boolean" }),
+  enum: (inner) => {
+    const enumLike = inner as { options?: readonly unknown[] };
+    if (!enumLike.options) return { type: "unknown" };
+    const values = enumLike.options.filter(
+      (v): v is string => typeof v === "string",
+    );
+    return values.length > 0
+      ? { type: "enum", enumValues: values }
+      : { type: "unknown" };
   },
 };
 
 function primitiveTypeOf(inner: z.ZodTypeAny): PrimitiveTypeInfo {
   const def = inner._def as ZodInnerDef;
-  const resolve = def.typeName ? PRIMITIVE_TYPE_RESOLVERS[def.typeName] : undefined;
+  const resolve = def.type ? PRIMITIVE_TYPE_RESOLVERS[def.type] : undefined;
   return resolve ? resolve(inner, def) : { type: "unknown" };
 }
 
