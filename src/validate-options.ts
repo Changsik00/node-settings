@@ -30,7 +30,7 @@ export function assertSettingsLoaderShape(
 }
 
 interface ZodDefSnapshot {
-  typeName?: string;
+  type?: string;
 }
 
 /**
@@ -44,12 +44,12 @@ function unwrapWrappers(schema: z.ZodTypeAny): {
 } {
   let inner = schema;
   for (let i = 0; i < 16; i += 1) {
-    const typeName = (inner._def as ZodDefSnapshot).typeName;
-    if (typeName === "ZodOptional") {
+    const typeName = (inner._def as ZodDefSnapshot).type;
+    if (typeName === "optional") {
       inner = (inner as z.ZodOptional<z.ZodTypeAny>).unwrap();
-    } else if (typeName === "ZodDefault") {
+    } else if (typeName === "default") {
       inner = (inner as z.ZodDefault<z.ZodTypeAny>).removeDefault();
-    } else if (typeName === "ZodNullable") {
+    } else if (typeName === "nullable") {
       inner = (inner as z.ZodNullable<z.ZodTypeAny>).unwrap();
     } else {
       return { typeName: typeName ?? "unknown", inner };
@@ -76,8 +76,8 @@ interface ValidatedOptionsInput {
 export function validateDefineSettingsOptions(
   input: ValidatedOptionsInput,
 ): void {
-  const ownTypeName = (input.ownEnvSchema._def as ZodDefSnapshot).typeName;
-  if (ownTypeName !== "ZodObject") {
+  const ownTypeName = (input.ownEnvSchema._def as ZodDefSnapshot).type;
+  if (ownTypeName !== "object") {
     raise(
       "INVALID_ENV_SCHEMA",
       `envSchema must be a z.object({...}). Got ${ownTypeName ?? "unknown"}.`,
@@ -99,11 +99,8 @@ export function validateDefineSettingsOptions(
 
   const envKeyField = shape[input.envKey] as z.ZodTypeAny;
   const { typeName: envKeyType, inner: envKeyInner } = unwrapWrappers(envKeyField);
-  if (
-    envKeyType !== "ZodString" &&
-    envKeyType !== "ZodEnum" &&
-    envKeyType !== "ZodNativeEnum"
-  ) {
+  // zod 4: ZodNativeEnum is unified under "enum"
+  if (envKeyType !== "string" && envKeyType !== "enum") {
     raise(
       "INVALID_ENV_KEY_TYPE",
       `envKey '${input.envKey}' must resolve to z.string() or z.enum(...) (got ${envKeyType}).`,
@@ -131,10 +128,9 @@ export function validateDefineSettingsOptions(
   if (allowedEnumValues) {
     for (const key of branchKeys) {
       if (!allowedEnumValues.includes(key)) {
-        const label = envKeyType === "ZodNativeEnum" ? "native enum" : "enum";
         raise(
           "PER_ENV_KEY_NOT_IN_ENUM",
-          `perEnv has branch '${key}', but envKey '${input.envKey}' ${label} only allows: ${allowedEnumValues.join(", ")}.`,
+          `perEnv has branch '${key}', but envKey '${input.envKey}' enum only allows: ${allowedEnumValues.join(", ")}.`,
           {
             hint: `Either add '${key}' to the enum or remove the perEnv branch (likely a typo).`,
           },
@@ -160,20 +156,16 @@ export function validateDefineSettingsOptions(
 /**
  * Return the allowed string values for an enum-shaped zod type, or
  * `undefined` when the type isn't an enum at all (so callers can
- * short-circuit). Hides the ZodEnum / ZodNativeEnum branching.
+ * short-circuit). zod 4 unifies ZodEnum / ZodNativeEnum under
+ * `_def.type === "enum"`, so we just read `.options` (string values only).
  */
 function enumValuesOf(
   typeName: string,
   inner: z.ZodTypeAny,
 ): readonly string[] | undefined {
-  if (typeName === "ZodEnum") {
-    return (inner as z.ZodEnum<[string, ...string[]]>).options;
-  }
-  if (typeName === "ZodNativeEnum") {
-    const values = Object.values(
-      (inner._def as { values?: Record<string, string | number> }).values ?? {},
-    ).filter((v): v is string => typeof v === "string");
-    return values.length > 0 ? values : undefined;
-  }
-  return undefined;
+  if (typeName !== "enum") return undefined;
+  const enumLike = inner as { options?: readonly unknown[] };
+  if (!enumLike.options) return undefined;
+  const values = enumLike.options.filter((v): v is string => typeof v === "string");
+  return values.length > 0 ? values : undefined;
 }

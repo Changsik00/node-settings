@@ -1,6 +1,6 @@
 {
   "name": "@env-kit/node-settings",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Schema-first settings for Node apps: cascading config across env files, per-env config files, and packages (monorepo extends). Zod validation, .env.example / Markdown docs / Kubernetes manifest generation, CLI for CI/CD.",
   "keywords": [
     "config",
@@ -97,7 +97,7 @@
     "esbuild": ">=0.21.0 <1.0.0",
     "next": "^13 || ^14 || ^15 || ^16",
     "vite": "^4 || ^5 || ^6 || ^7",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "peerDependenciesMeta": {
     "esbuild": {
@@ -127,7 +127,7 @@
     "typescript": "^5.6.0",
     "vite": "^5.4.21",
     "vitest": "^2.1.0",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "publishConfig": {
     "access": "public"

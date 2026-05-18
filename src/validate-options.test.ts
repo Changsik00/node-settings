@@ -7,10 +7,9 @@ describe("defensive validations at defineSettings time", () => {
   it("rejects envSchema that is not a ZodObject", () => {
     expect(() =>
       defineSettings({
-        // a refined ZodEffects, not a ZodObject
-        envSchema: z
-          .object({ APP_ENV: z.enum(["local"]).default("local") })
-          .refine(() => true) as unknown as z.ZodObject<z.ZodRawShape>,
+        // a non-object schema (zod 4 keeps refined objects as ZodObject, so
+        // we need a clearly non-object shape to trigger the validation)
+        envSchema: z.string() as unknown as z.ZodObject<z.ZodRawShape>,
         envKey: "APP_ENV",
         defaults: {},
         perEnv: { local: {} },
@@ -245,7 +244,8 @@ describe("defensive validations at defineSettings time", () => {
         expect((err as NodeSettingsError).code).toBe(
           "PER_ENV_KEY_NOT_IN_ENUM",
         );
-        expect((err as NodeSettingsError).message).toMatch(/native enum/);
+        // zod 4 unifies ZodEnum / ZodNativeEnum — message simplified to "enum".
+        expect((err as NodeSettingsError).message).toMatch(/enum/);
         expect((err as NodeSettingsError).message).toMatch(/staging/);
       }
     });

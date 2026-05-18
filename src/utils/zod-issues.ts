@@ -8,8 +8,8 @@ export interface ZodIssueSummary {
 
 /** Flatten a ZodError into a structured list. `path` is dot-joined; the root path renders as `(root)`. */
 export function zodIssuesOf(err: z.ZodError): ZodIssueSummary[] {
-  return err.errors.map((e) => ({
-    path: e.path.join(".") || "(root)",
+  return err.issues.map((e) => ({
+    path: e.path.map(String).join(".") || "(root)",
     message: e.message,
   }));
 }

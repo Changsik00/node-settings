@@ -8,6 +8,42 @@ under `[Unreleased]` and are promoted to a versioned section when
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-18
+### Breaking Changes
+
+- **zod peerDependency bumped from `^3.23.0` to `^4.4.3`.** Consumers
+  using zod 3 must either pin to `@env-kit/node-settings@1.0.2` or
+  migrate their schemas to zod 4 (the changes are mostly mechanical —
+  `z.string().email()` → `z.email()` etc.). The runtime semantics of
+  every public API are preserved.
+
+### Internal — zod 4 migration
+
+- **`_def.typeName` → `_def.type`.** zod 4 renamed the type discriminator
+  on `_def` and lower-cased the values (`"ZodObject"` → `"object"`,
+  `"ZodEnum"` → `"enum"`, etc.). All internal introspection in
+  `validate-options.ts` and `introspect.ts` updated.
+- **`ZodEnum` and `ZodNativeEnum` unified.** zod 4 collapses both into
+  `_def.type === "enum"` with values on `.options`. The error message
+  for `PER_ENV_KEY_NOT_IN_ENUM` is simplified to `enum` (was branching
+  between `enum` / `native enum`).
+- **`ZodEffects` / `ZodPipeline` collapsed into `pipe`.** zod 4
+  represents both `.transform()` and `.pipe()` as a single `ZodPipe`
+  with `in` and `out`. The introspection walker follows `def.in` for
+  both cases.
+- **`_def.defaultValue` is now a direct value.** zod 3 stored defaults
+  as a `() => unknown` thunk; zod 4 stores the value directly. The
+  introspection code accepts both shapes for forward compatibility.
+- **`ZodError.errors` → `ZodError.issues`.** `src/utils/zod-issues.ts`
+  updated; the path is also stringified explicitly since zod 4 may
+  produce numeric path segments.
+- All 294 tests pass under zod 4.4.3.
+
+### Tested with
+
+- `zod@4.4.3`
+- Node 22 LTS (verified working under Node 24 with engine warning)
+
 ## [1.0.2] — 2026-05-17
 ### Documentation
 
