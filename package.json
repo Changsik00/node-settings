@@ -1,6 +1,6 @@
 {
   "name": "@env-kit/node-settings",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Schema-first settings for Node apps: cascading config across env files, per-env config files, and packages (monorepo extends). Zod validation, .env.example / Markdown docs / Kubernetes manifest generation, CLI for CI/CD.",
   "keywords": [
     "config",
