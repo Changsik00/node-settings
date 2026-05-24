@@ -119,6 +119,25 @@ describe("defineSettings", () => {
     ).toThrow(/override JSON parse failed/);
   });
 
+  it.each([
+    ["array",  JSON.stringify(["bucket", "timeout"])],
+    ["string", JSON.stringify("just a string")],
+    ["number", JSON.stringify(42)],
+    ["null",   "null"],
+  ])("throws OVERRIDE_JSON_NOT_OBJECT when override JSON is a %s", (_label, value) => {
+    const settings = defineSettings({
+      envSchema,
+      envKey: "APP_ENV",
+      overrideEnvKey: "CONFIG_OVERRIDE_JSON",
+      defaults,
+      perEnv,
+      build: (_env, config) => config,
+    });
+    expect(() =>
+      settings({ ...baseEnv, CONFIG_OVERRIDE_JSON: value }),
+    ).toThrow(/override JSON must be a plain object/);
+  });
+
   it("runs validateOverride to reject unknown keys", () => {
     const settings = defineSettings({
       envSchema,

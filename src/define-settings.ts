@@ -469,6 +469,19 @@ function parseJsonOverride(
       },
     );
   }
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    Array.isArray(parsed)
+  ) {
+    raise(
+      "OVERRIDE_JSON_NOT_OBJECT",
+      `override JSON must be a plain object, got ${Array.isArray(parsed) ? "array" : typeof parsed}`,
+      {
+        hint: "Set the override env var to a JSON object string, e.g. '{\"bucket\":\"x\"}'.",
+      },
+    );
+  }
   return validate
     ? validate(parsed)
     : (parsed as DeepPartial<Record<string, unknown>>);
