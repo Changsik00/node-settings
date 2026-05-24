@@ -76,6 +76,11 @@ export const ERROR_CATALOG = {
     title: "Override env var is not valid JSON",
     docsAnchor: "override_json_parse",
   },
+  OVERRIDE_JSON_NOT_OBJECT: {
+    severity: "runtime",
+    title: "Override env var parsed to a non-object value",
+    docsAnchor: "override_json_not_object",
+  },
   CLIENT_ENV_UNDECLARED: {
     severity: "runtime",
     title: "Prefixed key present at runtime but not declared in the client schema",

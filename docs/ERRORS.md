@@ -86,6 +86,7 @@ Bad env values at boot. The deployment environment must provide them; the develo
 | `PER_ENV_BRANCH_MISSING` | <a id="per_env_branch_missing"></a>[#per_env_branch_missing](#per_env_branch_missing) | No perEnv branch matches the runtime envKey value |
 | `PER_ENV_TODO` | <a id="per_env_todo"></a>[#per_env_todo](#per_env_todo) | Loaded perEnv branch still has unfilled todo() sentinels |
 | `OVERRIDE_JSON_PARSE` | <a id="override_json_parse"></a>[#override_json_parse](#override_json_parse) | Override env var is not valid JSON |
+| `OVERRIDE_JSON_NOT_OBJECT` | <a id="override_json_not_object"></a>[#override_json_not_object](#override_json_not_object) | Override env var parsed to a non-object value |
 | `CLIENT_ENV_UNDECLARED` | <a id="client_env_undeclared"></a>[#client_env_undeclared](#client_env_undeclared) | Prefixed key present at runtime but not declared in the client schema |
 | `CLIENT_ENV_VALIDATION_FAILED` | <a id="client_env_validation_failed"></a>[#client_env_validation_failed](#client_env_validation_failed) | Zod validation of the client-side env failed |
 
