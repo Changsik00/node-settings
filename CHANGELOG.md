@@ -8,6 +8,10 @@ under `[Unreleased]` and are promoted to a versioned section when
 
 ## [Unreleased]
 
+### Fixed
+
+- **`OVERRIDE_JSON_NOT_OBJECT`** — `overrideEnvKey` env var가 배열·문자열·숫자·null 등 non-object JSON으로 파싱될 때 `deepMerge`에 그대로 전달되어 config가 조용히 오염되던 버그를 수정. 이제 plain object가 아닌 경우 즉시 `NodeSettingsError(code: 'OVERRIDE_JSON_NOT_OBJECT')`를 throw합니다.
+
 ## [1.1.0] — 2026-05-18
 ### Breaking Changes
 
