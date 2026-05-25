@@ -110,6 +110,12 @@ function vercel(overrides?: VercelMapping): AppEnvPreset {
       if (v === "production") return m.production;
       if (v === "preview") return m.preview;
       if (v === "development") return m.development;
+      if (typeof v === "string" && v.length > 0) {
+        console.warn(
+          `[node-settings] vercel preset: VERCEL_ENV="${v}" is not a recognized value ` +
+            `(expected: production, preview, development) — falling through to next preset or default.`,
+        );
+      }
       return undefined;
     },
   };
@@ -140,6 +146,12 @@ function netlify(overrides?: NetlifyMapping): AppEnvPreset {
     detect: (env) => {
       const v = env.CONTEXT;
       if (v && v in m) return m[v as keyof NetlifyMapping];
+      if (typeof v === "string" && v.length > 0) {
+        console.warn(
+          `[node-settings] netlify preset: CONTEXT="${v}" is not a recognized value ` +
+            `(expected: ${Object.keys(m).join(", ")}) — falling through to next preset or default.`,
+        );
+      }
       return undefined;
     },
   };
@@ -219,6 +231,15 @@ function railway(overrides?: RailwayMapping): AppEnvPreset {
     detect: (env) => {
       const v = env.RAILWAY_ENVIRONMENT_NAME ?? env.RAILWAY_ENVIRONMENT;
       if (v && v in m) return m[v];
+      if (typeof v === "string" && v.length > 0) {
+        const key = env.RAILWAY_ENVIRONMENT_NAME !== undefined
+          ? "RAILWAY_ENVIRONMENT_NAME"
+          : "RAILWAY_ENVIRONMENT";
+        console.warn(
+          `[node-settings] railway preset: ${key}="${v}" is not a recognized value ` +
+            `(expected: ${Object.keys(m).join(", ")}) — falling through to next preset or default.`,
+        );
+      }
       return undefined;
     },
   };
@@ -267,6 +288,12 @@ function nodeEnv(overrides?: NodeEnvMapping): AppEnvPreset {
       if (v === "production") return m.production;
       if (v === "development") return m.development;
       if (v === "test") return m.test;
+      if (typeof v === "string" && v.length > 0) {
+        console.warn(
+          `[node-settings] node-env preset: NODE_ENV="${v}" is not a recognized value ` +
+            `(expected: production, development, test) — falling through to next preset or default.`,
+        );
+      }
       return undefined;
     },
   };
