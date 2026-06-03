@@ -81,6 +81,11 @@ export const ERROR_CATALOG = {
     title: "Override env var parsed to a non-object value",
     docsAnchor: "override_json_not_object",
   },
+  OVERRIDE_ENV_EMPTY: {
+    severity: "runtime",
+    title: "Override env var is set but contains only whitespace",
+    docsAnchor: "override_env_empty",
+  },
   CLIENT_ENV_UNDECLARED: {
     severity: "runtime",
     title: "Prefixed key present at runtime but not declared in the client schema",

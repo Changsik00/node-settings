@@ -456,7 +456,14 @@ function parseJsonOverride(
   raw: unknown,
   validate?: (parsed: unknown) => DeepPartial<Record<string, unknown>>,
 ): DeepPartial<Record<string, unknown>> | undefined {
-  if (typeof raw !== "string" || raw.trim().length === 0) return undefined;
+  if (typeof raw !== "string" || raw.length === 0) return undefined;
+  if (raw.trim().length === 0) {
+    raise(
+      "OVERRIDE_ENV_EMPTY",
+      `overrideEnvKey is set but contains only whitespace — override skipped.`,
+      { hint: "Set the env var to a valid JSON object string or leave it unset entirely." },
+    );
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);

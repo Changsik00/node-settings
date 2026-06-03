@@ -183,6 +183,22 @@ describe("defineSettings", () => {
     expect(onOverride).toHaveBeenCalledWith({ bucket: "alt" }, "local");
   });
 
+  it("throws OVERRIDE_ENV_EMPTY when override env var is whitespace-only", () => {
+    const settings = defineSettings({
+      envSchema,
+      envKey: "APP_ENV",
+      overrideEnvKey: "CONFIG_OVERRIDE_JSON",
+      defaults,
+      perEnv,
+      build: (_env, config) => config,
+    });
+    for (const ws of [" ", "   ", "\t", "\n", "  \t  "]) {
+      expect(() =>
+        settings({ ...baseEnv, CONFIG_OVERRIDE_JSON: ws }),
+      ).toThrow(expect.objectContaining({ code: "OVERRIDE_ENV_EMPTY" }));
+    }
+  });
+
   it("skips onOverride when the override env is empty / unset", () => {
     const onOverride = vi.fn();
     const settings = defineSettings({
