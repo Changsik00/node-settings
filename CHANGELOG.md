@@ -7,6 +7,8 @@ under `[Unreleased]` and are promoted to a versioned section when
 `pnpm release <version>` runs.
 
 ## [Unreleased]
+
+## [1.1.2] — 2026-06-03
 ### Bug Fixes
 
 - **Deep freeze settings output.** `Object.freeze()` was shallow — nested objects and arrays inside the returned settings were still mutable. The loader now applies a recursive deep freeze so the full settings tree is immutable. (closes #8)
