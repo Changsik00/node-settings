@@ -7,6 +7,10 @@ under `[Unreleased]` and are promoted to a versioned section when
 `pnpm release <version>` runs.
 
 ## [Unreleased]
+### Bug Fixes
+
+- **Deep freeze settings output.** `Object.freeze()` was shallow — nested objects and arrays inside the returned settings were still mutable. The loader now applies a recursive deep freeze so the full settings tree is immutable. (closes #8)
+- **Throw on whitespace-only `overrideEnvKey` env var.** When the override env var was set to a whitespace-only string (e.g. `"   "`), the override was silently skipped with no indication anything was wrong. Now raises `NodeSettingsError` with code `OVERRIDE_ENV_EMPTY` at boot time. Empty string (`""`) continues to be silently skipped. (closes #12)
 
 ## [1.1.1] — 2026-05-24
 ### Fixed
