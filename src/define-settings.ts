@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { deepMerge, type DeepPartial } from "./utils/deep-merge.js";
+import { deepFreeze } from "./utils/deep-freeze.js";
 import { mergePerEnv } from "./utils/merge-per-env.js";
 import {
   introspectEnvSchema,
@@ -366,7 +367,7 @@ export function defineSettings<
       );
     }
 
-    return Object.freeze(
+    return deepFreeze(
       opts.build(
         env as MergedEnv<TExtends, z.infer<TSchema>>,
         finalConfig as NoInfer<MergedConfig<TExtends, TConfig>>,
