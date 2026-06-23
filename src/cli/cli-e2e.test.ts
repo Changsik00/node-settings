@@ -88,6 +88,50 @@ describe("CLI e2e — inspect", () => {
     expect(out).toContain("cdnDomain: <TODO:");
     expect(out).not.toContain("layered config for APP_ENV=local");
   });
+
+  it("surfaces envOverrides in text and json output", async () => {
+    // Write the config under the project root so jiti can resolve `zod`
+    // and `@env-kit/node-settings` via the regular node_modules walk-up.
+    const dir = mkdtempSync(join(process.cwd(), ".tmp-ov-e2e-"));
+    const configPath = join(dir, "settings.config.ts");
+    writeFileSync(
+      configPath,
+      `
+import { defineSettings } from "${process.cwd().replace(/\\/g, "/")}/src/index.ts";
+import { z } from "zod";
+
+export default defineSettings({
+  envSchema: z.object({
+    APP_ENV: z.enum(["local", "prod"]).default("local"),
+    TIMEOUT: z.coerce.number().optional(),
+  }),
+  envKey: "APP_ENV",
+  defaults: { timeout: 3000 },
+  perEnv: { local: {}, prod: {} },
+  envOverrides: { TIMEOUT: "timeout" },
+  build: (_env, config) => config,
+});
+`,
+    );
+    try {
+      const textCode = await runCli(["inspect", "--config", configPath]);
+      expect(textCode).toBe(0);
+      expect(capture.logs.join("\n")).toContain("envOverrides: TIMEOUT -> timeout");
+
+      const jsonCode = await runCli([
+        "inspect",
+        "--config",
+        configPath,
+        "--format",
+        "json",
+      ]);
+      expect(jsonCode).toBe(0);
+      const doc = JSON.parse(capture.stdout.join(""));
+      expect(doc.envOverrides).toEqual({ TIMEOUT: "timeout" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("CLI e2e — validate", () => {

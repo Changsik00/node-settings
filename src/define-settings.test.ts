@@ -242,4 +242,110 @@ describe("defineSettings", () => {
     const password = settings.envFields.find((f) => f.key === "DB_PASSWORD");
     expect(password?.secret).toBe(true);
   });
+
+  describe("envOverrides", () => {
+    const ovSchema = z.object({
+      APP_ENV: z.enum(["local", "prod"]).default("local"),
+      DB_HOST: z.string(),
+      TIMEOUT: z.coerce.number().optional(),
+      DB_PORT: z.coerce.number().optional(),
+      CONFIG_OVERRIDE_JSON: z.string().optional(),
+    });
+    const ovDefaults = { timeout: 3000, db: { port: 5432 } };
+    const ovPerEnv = { local: {}, prod: { timeout: 5000 } };
+
+    it("overrides a config value when the mapped env var is present", () => {
+      const settings = defineSettings({
+        envSchema: ovSchema,
+        envKey: "APP_ENV",
+        defaults: ovDefaults,
+        perEnv: ovPerEnv,
+        envOverrides: { TIMEOUT: "timeout" },
+        build: (_env, config) => config,
+      });
+      expect(settings({ DB_HOST: "h", TIMEOUT: "9000" }).timeout).toBe(9000);
+    });
+
+    it("leaves config untouched when the mapped env var is absent", () => {
+      const settings = defineSettings({
+        envSchema: ovSchema,
+        envKey: "APP_ENV",
+        defaults: ovDefaults,
+        perEnv: ovPerEnv,
+        envOverrides: { TIMEOUT: "timeout" },
+        build: (_env, config) => config,
+      });
+      // prod perEnv sets timeout 5000; no TIMEOUT env -> perEnv value stays.
+      expect(settings({ DB_HOST: "h", APP_ENV: "prod" }).timeout).toBe(5000);
+    });
+
+    it("writes into a nested config path via dot notation", () => {
+      const settings = defineSettings({
+        envSchema: ovSchema,
+        envKey: "APP_ENV",
+        defaults: ovDefaults,
+        perEnv: ovPerEnv,
+        envOverrides: { DB_PORT: "db.port" },
+        build: (_env, config) => config,
+      });
+      const s = settings({ DB_HOST: "h", DB_PORT: "6543" });
+      expect(s.db.port).toBe(6543);
+    });
+
+    it("is overridden by the overrideEnvKey JSON blob (layer D wins)", () => {
+      const settings = defineSettings({
+        envSchema: ovSchema,
+        envKey: "APP_ENV",
+        overrideEnvKey: "CONFIG_OVERRIDE_JSON",
+        defaults: ovDefaults,
+        perEnv: ovPerEnv,
+        envOverrides: { TIMEOUT: "timeout" },
+        build: (_env, config) => config,
+      });
+      const s = settings({
+        DB_HOST: "h",
+        TIMEOUT: "9000",
+        CONFIG_OVERRIDE_JSON: JSON.stringify({ timeout: 1 }),
+      });
+      expect(s.timeout).toBe(1);
+    });
+
+    it("exposes the resolved envOverrides for tooling", () => {
+      const settings = defineSettings({
+        envSchema: ovSchema,
+        envKey: "APP_ENV",
+        defaults: ovDefaults,
+        perEnv: ovPerEnv,
+        envOverrides: { TIMEOUT: "timeout" },
+        build: (_env, config) => config,
+      });
+      expect(settings.resolved.envOverrides).toEqual({ TIMEOUT: "timeout" });
+    });
+
+    it("rejects an envOverrides key not present in the schema", () => {
+      expect(() =>
+        defineSettings({
+          envSchema: ovSchema,
+          envKey: "APP_ENV",
+          defaults: ovDefaults,
+          perEnv: ovPerEnv,
+          envOverrides: { NOPE: "timeout" } as never,
+          build: (_env, config) => config,
+        }),
+      ).toThrow(expect.objectContaining({ code: "INVALID_ENV_OVERRIDE_KEY" }));
+    });
+
+    it("rejects an empty config path", () => {
+      expect(() =>
+        defineSettings({
+          envSchema: ovSchema,
+          envKey: "APP_ENV",
+          defaults: ovDefaults,
+          perEnv: ovPerEnv,
+          envOverrides: { TIMEOUT: "" },
+          build: (_env, config) => config,
+        }),
+      ).toThrow(expect.objectContaining({ code: "INVALID_ENV_OVERRIDE_KEY" }));
+    });
+  });
 });

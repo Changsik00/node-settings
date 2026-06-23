@@ -43,6 +43,7 @@ const loadSettings = defineSettings({
     DB_HOST: z.string(),
     DB_PASSWORD: z.string(),         // auto-flagged as a secret
     APP_CONFIG_JSON: z.string().optional(), // runtime override (see (5))
+    APP_REGION: z.string().optional(),      // per-field override (see (5b))
   }),
 
   // 2. envKey — which env var picks the active perEnv branch.
@@ -76,6 +77,13 @@ const loadSettings = defineSettings({
   //    flag without redeploying, patch a region during incident
   //    response. Same image, different config, no rebuild.
   overrideEnvKey: "APP_CONFIG_JSON",
+
+  // 5b. envOverrides — typed, per-field deploy-time overrides. Maps an
+  //     env var to a config dot-path; when the env var is set, its
+  //     validated value replaces that config field. Makes "this env var
+  //     overrides this config field" an explicit, reviewable contract
+  //     instead of a hidden `{ ...config, ...env }` spread in build().
+  envOverrides: { APP_REGION: "region" },
 
   // 6. build — receives (envSchema output, merged defaults + perEnv
   //    + JSON override) and returns the final settings object. This

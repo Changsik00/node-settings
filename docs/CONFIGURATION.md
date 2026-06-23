@@ -154,6 +154,7 @@ Merge rules:
 | `perEnv`         | Per env key, `deepMerge(parent, child)`.                              |
 | `envKey`         | Child wins.                                                           |
 | `overrideEnvKey` | Child wins; if omitted, inherited from the last parent that sets one. |
+| `envOverrides`   | Shallow-merged across parents then child (`{ ...parents, ...child }`). |
 | `build`          | Child's only — but `env` / `config` parameters have the merged shape. |
 
 Multiple parents are supported (merged in array order, later wins):
@@ -206,6 +207,8 @@ env
 envSpecific
   ↓ deepMerge(resolvedDefaults, envSpecific)
 baseConfig
+  ↓ envOverrides: write env[VAR] into config path (optional, per-field)
+configWithEnvOverrides
   ↓ JSON.parse(env[overrideEnvKey])      (optional, top-priority layer)
   ↓ validateOverride? + deepMerge
 finalConfig
@@ -223,6 +226,7 @@ set the env var, why doesn't it work?" confusion.**
 | ------------------------------- | -------------------------------------- | ----------------- | ---------------------------------------- |
 | **`envSchema`** field (zod)     | CI / infra / deploy platform / shell   | runtime (boot)    | `ENV_VALIDATION_FAILED` (zod)            |
 | **`perEnv`** map (in source)    | a developer editing source             | commit time       | `PER_ENV_TODO` (with `todo(...)`)        |
+| **`envOverrides`** (env→config) | deploy-time tooling, per-field tuning   | runtime (boot)    | nothing — skipped when the env var is unset |
 | **`overrideEnvKey` JSON** (env) | deploy-time tooling, ad-hoc operator   | runtime (boot)    | nothing — override is optional by design |
 
 ### Use `envSchema` for…
@@ -273,6 +277,43 @@ The loader throws `PER_ENV_TODO` for *that* env until you replace it.
   (`CONFIG_OVERRIDE_JSON='{"workerConcurrency":16}'`).
 - Per-deployment knobs the infra team controls separately from the
   schema.
+
+### Use `envOverrides` for…
+
+- A **single env var that should override one config field** at deploy
+  time — the typed, per-field alternative to the `overrideEnvKey` JSON
+  blob. CI sets the env var; if it's present, its (zod-validated) value
+  replaces the config value at the declared path. If it's unset, the
+  config value stands.
+
+```ts
+defineSettings({
+  envSchema: z.object({
+    APP_ENV: z.enum(["local", "prod"]),
+    TIMEOUT: z.coerce.number().optional(),  // also a config concept
+  }),
+  envKey: "APP_ENV",
+  defaults: { http: { timeout: 3000 } },
+  perEnv: { local: {}, prod: { http: { timeout: 5000 } } },
+  // Declares the intent: env TIMEOUT overrides config.http.timeout.
+  envOverrides: { TIMEOUT: "http.timeout" },
+  build: (_env, config) => config,
+});
+```
+
+The map key is an env var name (must exist in `envSchema`); the value is
+a dot-path into the config. Absent / `undefined` env values are skipped,
+so an unset override never clobbers a configured value. The
+`overrideEnvKey` JSON blob, if also set, still wins over `envOverrides`.
+
+**Why a first-class option instead of `{ ...config, ...env }` in
+`build()`?** When the same key lives in both `envSchema` and the config
+layers, spreading env over config inside `build()` silently overwrites
+one with the other, and the precedence is invisible to anyone reading
+the schema. `envOverrides` makes that contract explicit and validated:
+the override is declared in one place, the env var is checked against
+the schema at definition time, and tooling can read it from
+`loader.resolved.envOverrides`.
 
 ### ⚠ `todo(...)` is *not* a way to require an env var
 
