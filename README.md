@@ -148,7 +148,10 @@ Three cascades, one frozen `settings`:
   own. [t3-oss/env](https://github.com/t3-oss/t3-env)-style composition.
 - **Runtime override.** `APP_CONFIG_JSON='{"bucket":"failover"}'`
   deep-merges on top of cascades 1–3. Same image, different config —
-  built for canaries and incident response.
+  built for canaries and incident response. For a single field, declare
+  `envOverrides: { ENV_VAR: "config.path" }` instead — a typed,
+  reviewable "this env var overrides this config field" mapping rather
+  than an ad-hoc JSON blob.
 
 For a complete worked example with split-file config + monorepo
 `extends` + env templates, see [`sample/`](./sample).
@@ -161,8 +164,9 @@ For a complete worked example with split-file config + monorepo
   fragment. Wire `node-settings generate` into CI (or use one of the
   build-time plugins) and the downstream artefacts can't drift from
   the schema — edit the schema, regenerate, commit, done.
-- **Layered config.** `defaults` + `perEnv[mode]` + optional JSON
-  override at boot. Result is `Object.freeze`'d.
+- **Layered config.** `defaults` + `perEnv[mode]` + per-field
+  `envOverrides` + optional JSON override, all at boot. Result is
+  `Object.freeze`'d.
 - **Build once, deploy many.** Same image, `APP_ENV`-driven branching.
   Runtime override (`APP_CONFIG_JSON`) lets ops patch values without
   redeploying.
