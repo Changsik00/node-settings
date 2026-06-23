@@ -7,6 +7,8 @@ under `[Unreleased]` and are promoted to a versioned section when
 `pnpm release <version>` runs.
 
 ## [Unreleased]
+
+## [1.2.0] — 2026-06-23
 ### Features
 
 - **`envOverrides` option.** A first-class, typed way to declare that an env var overrides a specific config field at deploy time. Maps an env var name (must exist in `envSchema`) to a config dot-path; when the env var is present at boot, its zod-validated value replaces the config value at that path. Absent / `undefined` env values are skipped, so an unset override never clobbers a configured value. Applied as a layer above `defaults` + `perEnv` but below the `overrideEnvKey` JSON blob, inherited and shallow-merged across `extends`, validated at definition time (`INVALID_ENV_OVERRIDE_KEY`), and surfaced via `loader.resolved.envOverrides` and `node-settings inspect`. Replaces the hidden `{ ...config, ...env }` spread inside `build()` with an explicit, reviewable contract. (closes #7)
