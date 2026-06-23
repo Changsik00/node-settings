@@ -101,11 +101,22 @@ export function validateDefineSettingsOptions(
   const { typeName: envKeyType, inner: envKeyInner } = unwrapWrappers(envKeyField);
   // zod 4: ZodNativeEnum is unified under "enum"
   if (envKeyType !== "string" && envKeyType !== "enum") {
+    // A `.transform()` / `.pipe()` on the envKey field surfaces here as
+    // `pipe` / `transform`. It's the single most common cause of this
+    // error, and the generic "got pipe" wording sends developers hunting
+    // through their .env file instead of their schema — so call it out
+    // by name (see issue #9).
+    const looksLikeTransform =
+      envKeyType === "pipe" || envKeyType === "transform";
     raise(
       "INVALID_ENV_KEY_TYPE",
-      `envKey '${input.envKey}' must resolve to z.string() or z.enum(...) (got ${envKeyType}).`,
+      looksLikeTransform
+        ? `envKey '${input.envKey}' uses a .transform()/.pipe(), which changes the value perEnv is looked up by. envKey must resolve directly to z.string() or z.enum(...).`
+        : `envKey '${input.envKey}' must resolve to z.string() or z.enum(...) (got ${envKeyType}).`,
       {
-        hint: "perEnv looks up branches by envKey's value, so it must be a discrete string.",
+        hint: looksLikeTransform
+          ? `Remove the transform from '${input.envKey}' and apply it to a different field, or read the raw value in build() instead. perEnv branches are matched against envKey's raw value, so it must stay a plain string/enum.`
+          : "perEnv looks up branches by envKey's value, so it must be a discrete string.",
       },
     );
   }
