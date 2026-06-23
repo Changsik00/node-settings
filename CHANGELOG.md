@@ -7,6 +7,9 @@ under `[Unreleased]` and are promoted to a versioned section when
 `pnpm release <version>` runs.
 
 ## [Unreleased]
+### Bug Fixes
+
+- **Clearer error when `.transform()` / `.pipe()` is applied to the `envKey` field.** Such a schema is rejected at definition time as `INVALID_ENV_KEY_TYPE`, but the message said only `got pipe`, sending developers to hunt through their `.env` file instead of their schema. The message now names the transform explicitly and explains that `perEnv` is matched against `envKey`'s raw value, so it must stay a plain string/enum. (closes #9)
 
 ## [1.1.2] — 2026-06-03
 ### Bug Fixes

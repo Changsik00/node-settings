@@ -55,6 +55,29 @@ describe("defensive validations at defineSettings time", () => {
     }
   });
 
+  it("calls out .transform() by name when applied to the envKey field", () => {
+    try {
+      defineSettings({
+        envSchema: z.object({
+          APP_ENV: z.enum(["local", "prod"]).transform((v) => v.toUpperCase()),
+        }),
+        envKey: "APP_ENV",
+        defaults: {},
+        perEnv: { local: {}, prod: {} },
+        build: () => ({}),
+      });
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NodeSettingsError);
+      const e = err as NodeSettingsError;
+      expect(e.code).toBe("INVALID_ENV_KEY_TYPE");
+      // The message must name the transform so developers look at their
+      // schema, not their .env file (issue #9).
+      expect(e.message).toMatch(/\.transform\(\)/);
+      expect(e.message).not.toMatch(/got pipe/);
+    }
+  });
+
   it("rejects perEnv that is empty", () => {
     try {
       defineSettings({
