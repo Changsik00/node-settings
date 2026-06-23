@@ -7,6 +7,10 @@ under `[Unreleased]` and are promoted to a versioned section when
 `pnpm release <version>` runs.
 
 ## [Unreleased]
+### Features
+
+- **`envOverrides` option.** A first-class, typed way to declare that an env var overrides a specific config field at deploy time. Maps an env var name (must exist in `envSchema`) to a config dot-path; when the env var is present at boot, its zod-validated value replaces the config value at that path. Absent / `undefined` env values are skipped, so an unset override never clobbers a configured value. Applied as a layer above `defaults` + `perEnv` but below the `overrideEnvKey` JSON blob, inherited and shallow-merged across `extends`, validated at definition time (`INVALID_ENV_OVERRIDE_KEY`), and surfaced via `loader.resolved.envOverrides` and `node-settings inspect`. Replaces the hidden `{ ...config, ...env }` spread inside `build()` with an explicit, reviewable contract. (closes #7)
+
 ### Bug Fixes
 
 - **Clearer error when `.transform()` / `.pipe()` is applied to the `envKey` field.** Such a schema is rejected at definition time as `INVALID_ENV_KEY_TYPE`, but the message said only `got pipe`, sending developers to hunt through their `.env` file instead of their schema. The message now names the transform explicitly and explains that `perEnv` is matched against `envKey`'s raw value, so it must stay a plain string/enum. (closes #9)

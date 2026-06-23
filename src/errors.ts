@@ -39,6 +39,11 @@ export const ERROR_CATALOG = {
     title: "overrideEnvKey not found in envSchema",
     docsAnchor: "invalid_override_key",
   },
+  INVALID_ENV_OVERRIDE_KEY: {
+    severity: "config",
+    title: "envOverrides entry not found in envSchema or has an empty path",
+    docsAnchor: "invalid_env_override_key",
+  },
   PER_ENV_EMPTY: {
     severity: "config",
     title: "perEnv has no branches",

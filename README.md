@@ -43,6 +43,7 @@ const loadSettings = defineSettings({
     DB_HOST: z.string(),
     DB_PASSWORD: z.string(),         // auto-flagged as a secret
     APP_CONFIG_JSON: z.string().optional(), // runtime override (see (5))
+    APP_REGION: z.string().optional(),      // per-field override (see (5b))
   }),
 
   // 2. envKey — which env var picks the active perEnv branch.
@@ -76,6 +77,13 @@ const loadSettings = defineSettings({
   //    flag without redeploying, patch a region during incident
   //    response. Same image, different config, no rebuild.
   overrideEnvKey: "APP_CONFIG_JSON",
+
+  // 5b. envOverrides — typed, per-field deploy-time overrides. Maps an
+  //     env var to a config dot-path; when the env var is set, its
+  //     validated value replaces that config field. Makes "this env var
+  //     overrides this config field" an explicit, reviewable contract
+  //     instead of a hidden `{ ...config, ...env }` spread in build().
+  envOverrides: { APP_REGION: "region" },
 
   // 6. build — receives (envSchema output, merged defaults + perEnv
   //    + JSON override) and returns the final settings object. This
@@ -140,7 +148,10 @@ Three cascades, one frozen `settings`:
   own. [t3-oss/env](https://github.com/t3-oss/t3-env)-style composition.
 - **Runtime override.** `APP_CONFIG_JSON='{"bucket":"failover"}'`
   deep-merges on top of cascades 1–3. Same image, different config —
-  built for canaries and incident response.
+  built for canaries and incident response. For a single field, declare
+  `envOverrides: { ENV_VAR: "config.path" }` instead — a typed,
+  reviewable "this env var overrides this config field" mapping rather
+  than an ad-hoc JSON blob.
 
 For a complete worked example with split-file config + monorepo
 `extends` + env templates, see [`sample/`](./sample).
@@ -153,8 +164,9 @@ For a complete worked example with split-file config + monorepo
   fragment. Wire `node-settings generate` into CI (or use one of the
   build-time plugins) and the downstream artefacts can't drift from
   the schema — edit the schema, regenerate, commit, done.
-- **Layered config.** `defaults` + `perEnv[mode]` + optional JSON
-  override at boot. Result is `Object.freeze`'d.
+- **Layered config.** `defaults` + `perEnv[mode]` + per-field
+  `envOverrides` + optional JSON override, all at boot. Result is
+  `Object.freeze`'d.
 - **Build once, deploy many.** Same image, `APP_ENV`-driven branching.
   Runtime override (`APP_CONFIG_JSON`) lets ops patch values without
   redeploying.
