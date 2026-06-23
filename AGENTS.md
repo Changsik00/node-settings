@@ -177,6 +177,8 @@ env                                        ←  every parent's schema merged in
 envSpecific
   ↓ deepMerge(resolvedDefaults, envSpecific)
 baseConfig
+  ↓ envOverrides: env[VAR] → config dot-path (optional, per-field)
+configWithEnvOverrides
   ↓ JSON.parse(env[overrideEnvKey])        (optional)
   ↓ validateOverride? + deepMerge
 finalConfig
@@ -191,8 +193,8 @@ tooling properties:
 - `loader.envFields` — `EnvField[]` introspected from the *merged*
   schema. Used by all generators.
 - `loader.resolved` — `{ envSchema, defaults, perEnv, envKey,
-  overrideEnvKey }` after all `extends` layers have been merged in.
-  Used by `checkPerEnvCompleteness` and the CLI.
+  overrideEnvKey, envOverrides }` after all `extends` layers have been
+  merged in. Used by `checkPerEnvCompleteness` and the CLI.
 
 ## The two "base" axes (often confused)
 
@@ -215,7 +217,14 @@ A third "base" is the `.env.<mode>` file cascade (`loadDotenvCascade`)
 | --------------------------- | -------------------------------- | ---------------- | -------------------------------- |
 | `envSchema` field (zod)     | CI / infra / deploy platform     | runtime (boot)   | `ENV_VALIDATION_FAILED`          |
 | `perEnv` map (in source)    | developer editing source         | commit time      | `PER_ENV_TODO` (with `todo(...)`)|
+| `envOverrides` (env→config) | deploy-time tooling / operator   | runtime (boot)   | none (skipped when env var unset)|
 | `overrideEnvKey` JSON       | deploy-time tooling / operator   | runtime (boot)   | none (override is optional)      |
+
+`envOverrides` maps `{ ENV_VAR: "config.path" }`: when `ENV_VAR` is set,
+its zod-validated value overwrites the config field at that dot-path. It
+sits above `defaults`/`perEnv` but below the `overrideEnvKey` JSON blob.
+Use it for a typed, declared "this env var overrides this config field"
+instead of an implicit `{ ...config, ...env }` spread in `build()`.
 
 **Critical rule.** `todo(...)` is *not* a way to require an env var.
 `process.env` does not implicitly fill `perEnv` slots. CI-injected

@@ -63,6 +63,7 @@ interface ValidatedOptionsInput {
   resolvedEnvSchema: z.ZodObject<z.ZodRawShape>;
   envKey: string;
   overrideEnvKey: string | undefined;
+  envOverrides: Record<string, string>;
   resolvedPerEnv: Record<string, unknown>;
   extendsList: ReadonlyArray<unknown>;
 }
@@ -156,6 +157,28 @@ export function validateDefineSettingsOptions(
       `overrideEnvKey '${input.overrideEnvKey}' is not defined in the envSchema.`,
       { hint: `Known keys: ${knownKeys.join(", ") || "(none)"}.` },
     );
+  }
+
+  // Every envOverrides source must be a real env var (so the override
+  // actually has a value to read), and every target path must be a
+  // non-empty string (an empty path would silently merge nothing).
+  for (const [envVar, path] of Object.entries(input.envOverrides)) {
+    if (!(envVar in shape)) {
+      raise(
+        "INVALID_ENV_OVERRIDE_KEY",
+        `envOverrides key '${envVar}' is not defined in the envSchema.`,
+        { hint: `Known keys: ${knownKeys.join(", ") || "(none)"}.` },
+      );
+    }
+    if (typeof path !== "string" || path.length === 0) {
+      raise(
+        "INVALID_ENV_OVERRIDE_KEY",
+        `envOverrides['${envVar}'] must be a non-empty config path string.`,
+        {
+          hint: "Use a dot-path into the config, e.g. envOverrides: { TIMEOUT: 'http.timeout' }.",
+        },
+      );
+    }
   }
 
   // Eager extends validation: defineSettings's merge step reaches into

@@ -72,6 +72,7 @@ Misconfiguration in the developer's source. Surfaces at module-load time so it c
 | `MISSING_ENV_KEY` | <a id="missing_env_key"></a>[#missing_env_key](#missing_env_key) | envKey not found in envSchema |
 | `INVALID_ENV_KEY_TYPE` | <a id="invalid_env_key_type"></a>[#invalid_env_key_type](#invalid_env_key_type) | envKey is not a string / enum |
 | `INVALID_OVERRIDE_KEY` | <a id="invalid_override_key"></a>[#invalid_override_key](#invalid_override_key) | overrideEnvKey not found in envSchema |
+| `INVALID_ENV_OVERRIDE_KEY` | <a id="invalid_env_override_key"></a>[#invalid_env_override_key](#invalid_env_override_key) | envOverrides entry not found in envSchema or has an empty path |
 | `PER_ENV_EMPTY` | <a id="per_env_empty"></a>[#per_env_empty](#per_env_empty) | perEnv has no branches |
 | `PER_ENV_KEY_NOT_IN_ENUM` | <a id="per_env_key_not_in_enum"></a>[#per_env_key_not_in_enum](#per_env_key_not_in_enum) | perEnv branch not in envKey enum |
 | `CLIENT_ENV_PREFIX_VIOLATION` | <a id="client_env_prefix_violation"></a>[#client_env_prefix_violation](#client_env_prefix_violation) | defineClientEnv schema key missing required prefix |

@@ -25,6 +25,7 @@ interface InspectResult {
   config: string;
   envKey: string;
   overrideEnvKey?: string;
+  envOverrides?: Record<string, string>;
   envSchema: readonly EnvField[];
   branches: InspectEnvBranch[];
 }
@@ -81,6 +82,9 @@ async function buildInspectResult(
   if (loader.resolved.overrideEnvKey) {
     result.overrideEnvKey = loader.resolved.overrideEnvKey;
   }
+  if (Object.keys(loader.resolved.envOverrides).length > 0) {
+    result.envOverrides = { ...loader.resolved.envOverrides };
+  }
 
   for (const env of targetEnvs) {
     const branch = loader.resolved.perEnv[env];
@@ -104,6 +108,12 @@ function printInspectResultText(result: InspectResult): void {
   console.log(`envKey=${result.envKey}`);
   if (result.overrideEnvKey) {
     console.log(`overrideEnvKey=${result.overrideEnvKey}`);
+  }
+  if (result.envOverrides) {
+    const pairs = Object.entries(result.envOverrides)
+      .map(([envVar, path]) => `${envVar} -> ${path}`)
+      .join(", ");
+    console.log(`envOverrides: ${pairs}`);
   }
   console.log("");
 

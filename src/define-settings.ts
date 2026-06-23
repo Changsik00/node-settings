@@ -101,6 +101,38 @@ export interface DefineSettingsOptions<
    * config used as the highest-priority override layer.
    */
   overrideEnvKey?: keyof MergedEnv<TExtends, z.infer<TSchema>> & string;
+  /**
+   * Explicit, first-class env-to-config overrides. Maps an env var name
+   * (a key of `envSchema`) to a dot-path in the config. When that env var
+   * is present at runtime, its validated value replaces the config value
+   * at the given path — making "this env var overrides this config field"
+   * a declared contract instead of an implicit `{ ...config, ...env }`
+   * spread hidden inside `build()`.
+   *
+   * Applied as layer C: after `defaults` (A) and `perEnv` (B), but below
+   * the `overrideEnvKey` JSON blob (D), which remains the final word.
+   * Env vars that are absent (or `undefined` after parsing) are skipped,
+   * so an unset override never clobbers a configured value.
+   *
+   * @example
+   * ```ts
+   * defineSettings({
+   *   envSchema: z.object({
+   *     APP_ENV: z.enum(['local', 'prod']),
+   *     TIMEOUT: z.coerce.number().optional(),
+   *   }),
+   *   envKey: 'APP_ENV',
+   *   defaults: { timeout: 3000 },
+   *   perEnv: { local: {}, prod: { timeout: 5000 } },
+   *   // CI can set TIMEOUT to override the per-env value without a code change.
+   *   envOverrides: { TIMEOUT: 'timeout' },
+   *   build: (env, config) => config,
+   * });
+   * ```
+   */
+  envOverrides?: Partial<
+    Record<keyof MergedEnv<TExtends, z.infer<TSchema>> & string, string>
+  >;
   /** Defaults applied first (layer A). */
   defaults: TConfig;
   /** Per-env overrides keyed by the value of `envKey` (layer B). */
@@ -148,6 +180,8 @@ export interface ResolvedSettings {
   envKey: string;
   /** Optional override env key. */
   overrideEnvKey: string | undefined;
+  /** Merged env-to-config overrides across the extends chain. */
+  envOverrides: Record<string, string>;
   /** Merged defaults across the extends chain. */
   defaults: Record<string, unknown>;
   /** Merged per-env overrides across the extends chain. */
@@ -255,12 +289,17 @@ export function defineSettings<
   );
   const resolvedOverrideEnvKey =
     opts.overrideEnvKey ?? findInheritedOverrideEnvKey(extendsList);
+  const resolvedEnvOverrides = resolveEnvOverrides(
+    extendsList,
+    (opts.envOverrides ?? {}) as Record<string, string>,
+  );
 
   validateDefineSettingsOptions({
     ownEnvSchema: opts.envSchema,
     resolvedEnvSchema: resolvedSchema,
     envKey: opts.envKey as string,
     overrideEnvKey: opts.overrideEnvKey as string | undefined,
+    envOverrides: resolvedEnvOverrides,
     resolvedPerEnv: resolvedPerEnv,
     extendsList: extendsList,
   });
@@ -269,6 +308,7 @@ export function defineSettings<
     envSchema: resolvedSchema,
     envKey: opts.envKey as string,
     overrideEnvKey: resolvedOverrideEnvKey,
+    envOverrides: Object.freeze(resolvedEnvOverrides),
     defaults: Object.freeze(resolvedDefaults),
     perEnv: Object.freeze(resolvedPerEnv),
   });
@@ -327,6 +367,15 @@ export function defineSettings<
       envSpecific as DeepPartial<Record<string, unknown>>,
     );
 
+    // Layer C: explicit env-to-config overrides. Each present env var
+    // writes its validated value into the config at its declared path,
+    // on top of defaults + perEnv but below the JSON override blob.
+    const configWithEnvOverrides = applyEnvOverrides(
+      baseConfig,
+      env,
+      resolvedEnvOverrides,
+    );
+
     const overrides = resolvedOverrideEnvKey
       ? parseJsonOverride(
           env[resolvedOverrideEnvKey],
@@ -336,8 +385,8 @@ export function defineSettings<
         )
       : undefined;
     const finalConfig = overrides
-      ? deepMerge(baseConfig, overrides)
-      : baseConfig;
+      ? deepMerge(configWithEnvOverrides, overrides)
+      : configWithEnvOverrides;
 
     if (overrides && opts.onOverride) {
       opts.onOverride(
@@ -438,6 +487,64 @@ function resolvePerEnv(
     first as Record<string, Record<string, unknown>>,
     ...(rest as Array<Record<string, Record<string, unknown>>>),
   ) as Record<string, Record<string, unknown>>;
+}
+
+/**
+ * Merge env-to-config override maps across the extends chain. Parents
+ * are applied in array order, then the child's own map, so a child can
+ * remap or add to an env override declared by a parent (later wins).
+ */
+function resolveEnvOverrides(
+  extendsList: readonly AnySettingsLoader[],
+  own: Record<string, string>,
+): Record<string, string> {
+  let result: Record<string, string> = {};
+  for (const parent of extendsList) {
+    result = { ...result, ...parent.resolved.envOverrides };
+  }
+  return { ...result, ...own };
+}
+
+/**
+ * Apply the resolved `envOverrides` map to a config object. For each
+ * declared `envVar -> path`, when the parsed env value is present, the
+ * value is written into a fresh copy of the config at that dot-path via
+ * {@link deepMerge}. Absent / undefined env values are skipped so an
+ * unset override never clobbers a configured value.
+ */
+function applyEnvOverrides(
+  config: Record<string, unknown>,
+  env: Record<string, unknown>,
+  envOverrides: Record<string, string>,
+): Record<string, unknown> {
+  let result = config;
+  for (const [envVar, path] of Object.entries(envOverrides)) {
+    const value = env[envVar];
+    if (value === undefined) continue;
+    result = deepMerge(
+      result,
+      pathToObject(path, value) as DeepPartial<Record<string, unknown>>,
+    );
+  }
+  return result;
+}
+
+/**
+ * Turn a dot-path (`"a.b.c"`) plus a value into a nested object
+ * (`{ a: { b: { c: value } } }`) suitable for {@link deepMerge}. A path
+ * with no dots produces a single-key object.
+ */
+function pathToObject(path: string, value: unknown): Record<string, unknown> {
+  const segments = path.split(".");
+  const root: Record<string, unknown> = {};
+  let cursor = root;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const next: Record<string, unknown> = {};
+    cursor[segments[i] as string] = next;
+    cursor = next;
+  }
+  cursor[segments[segments.length - 1] as string] = value;
+  return root;
 }
 
 function findInheritedOverrideEnvKey(

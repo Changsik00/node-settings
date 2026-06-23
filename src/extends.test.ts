@@ -154,6 +154,38 @@ describe("defineSettings — extends", () => {
     expect((s as { bucket: string }).bucket).toBe("overridden");
   });
 
+  it("inherits and merges envOverrides from parent", () => {
+    const parent = defineSettings({
+      envSchema: z.object({
+        APP_ENV: z.enum(["local"]).default("local"),
+        DB_HOST: z.string(),
+        TIMEOUT: z.coerce.number().optional(),
+      }),
+      envKey: "APP_ENV",
+      defaults: { timeout: 1000 },
+      perEnv: { local: {} },
+      envOverrides: { TIMEOUT: "timeout" },
+      build: (_env, config) => config,
+    });
+    const child = defineSettings({
+      extends: [parent],
+      envSchema: z.object({ PAGE_SIZE: z.coerce.number().optional() }),
+      envKey: "APP_ENV",
+      defaults: { pageSize: 10 },
+      perEnv: { local: {} },
+      envOverrides: { PAGE_SIZE: "pageSize" },
+      build: (_env, config) => config,
+    });
+    // Child inherits the parent's mapping and adds its own.
+    expect(child.resolved.envOverrides).toEqual({
+      TIMEOUT: "timeout",
+      PAGE_SIZE: "pageSize",
+    });
+    const s = child({ DB_HOST: "h", TIMEOUT: "2000", PAGE_SIZE: "25" });
+    expect((s as { timeout: number }).timeout).toBe(2000);
+    expect((s as { pageSize: number }).pageSize).toBe(25);
+  });
+
   it("supports multiple parents (merged in array order)", () => {
     const a = defineSettings({
       envSchema: z.object({
